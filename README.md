@@ -1,6 +1,28 @@
-# Obsidian Sample Plugin
+# Obsidian Rive Plugin (WIP)
 
-This is a sample plugin for Obsidian (https://obsidian.md).
+> Work in Progress – This plugin aims to integrate **Rive** animations into Obsidian. The codebase currently derives from the official sample plugin scaffold and is being transformed into a feature-rich animation/interaction layer for notes, dashboards, and custom panes.
+
+Planned capabilities (iterative roadmap):
+- Embed a `.riv` animation inside a markdown code block or callout.
+- Play / pause / scrub / loop controls via command palette.
+- Trigger Rive state machine inputs from commands, hotkeys, or front‑matter.
+- Optional auto-play on file open and reactive updates on metadata changes.
+- Lightweight caching + lazy loading for performance.
+
+Short-term TODO (initial milestones):
+1. Add Rive Web runtime dependency + loading utility.
+2. Define a fenced code block syntax (` ```rive {src: path/to/file.riv}` ).
+3. Render a basic view with play / pause.
+4. Expose a sample command to restart the active animation.
+5. Persist simple per-animation settings (loop, autoplay).
+
+Feel free to open issues or suggestions while this is in flux.
+
+---
+
+Original sample plugin README content preserved below for reference while scaffolding is retained:
+
+---
 
 This project uses TypeScript to provide type checking and documentation.
 The repo depends on the latest plugin API (obsidian.d.ts) in TypeScript Definition format, which contains TSDoc comments describing what it does.
