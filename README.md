@@ -45,6 +45,31 @@ Notes:
 - State machines / artboards not yet configurable.
 - Basic error messages surface if the file is missing.
 
+### Fast Deploy to Your Vault (Windows)
+
+1. Set an environment variable once (PowerShell):
+  ```powershell
+  [Environment]::SetEnvironmentVariable('RIVE_VAULT','C:\\Path\\To\\YourVault',[EnvironmentVariableTarget]::User)
+  ```
+2. From the repo root build & deploy in one step:
+  ```powershell
+  npm run deploy
+  ```
+  (Runs a production build then copies `main.js`, `manifest.json`, `styles.css` into `$env:RIVE_VAULT/.obsidian/plugins/obsidian-rive-plugin/`.)
+3. In Obsidian press `Ctrl+R` or toggle the plugin to load the update.
+
+Alternative (one‑off path without env var):
+```powershell
+powershell -ExecutionPolicy Bypass -File .\deploy.ps1 -VaultPath 'C:\\Path\\To\\YourVault' -Build
+```
+
+Verbose copy details:
+```powershell
+powershell -ExecutionPolicy Bypass -File .\deploy.ps1 -Build -Verbose -VaultPath 'C:\\Path\\To\\YourVault'
+```
+
+If you just want to copy without rebuilding omit `-Build`.
+
 ---
 
 Original sample plugin README content preserved below for reference while scaffolding is retained:
