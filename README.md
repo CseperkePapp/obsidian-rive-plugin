@@ -2,6 +2,39 @@
 
 > Work in Progress – This plugin aims to integrate **Rive** animations into Obsidian. The codebase currently derives from the official sample plugin scaffold and is being transformed into a feature-rich animation/interaction layer for notes, dashboards, and custom panes.
 
+## Current Feature Snapshot
+| Area | Implemented |
+|------|-------------|
+| Fenced ```rive code block rendering | ✅ |
+| Relative and vault-root path resolution | ✅ |
+| Autoplay / loop defaults & per-block override | ✅ |
+| Pause / Restart controls | ✅ |
+| Command: Restart last animation | ✅ |
+| Lazy runtime loading | ✅ |
+| Runtime upgrade to @rive-app v2 (canvas/webgl/webgl2) | ✅ |
+| Select artboard, stateMachine, animation | ✅ (single each) |
+| Renderer selection per block (canvas / webgl / webgl2) | ✅ |
+| Buffer cache (avoid re-read of same .riv) | ✅ |
+| Auto-resize to container width | ✅ |
+| Error handling (missing file, timeout) | ✅ (basic) |
+| Auto deploy on build/watch (env or dev.local.json) | ✅ |
+| Multiple animations/stateMachines | ❌ (planned) |
+| Hotkeys (play/pause, restart) | ❌ (planned) |
+| Frontmatter global overrides | ❌ (planned) |
+| Asset loader (hosted assets) | ❌ (planned) |
+| Playhead scrubber / progress bar | ❌ (planned) |
+| Snapshot / export frame | ❌ (planned) |
+| Performance: pause offscreen | ❌ (planned) |
+
+## Quick Changelog (WIP)
+| Version (dev) | Highlights |
+|---------------|-----------|
+| 0.1.0 (init) | Fork of sample plugin, basic notice & test command |
+| 0.1.x +Rive | Added rive-js runtime, test load command, fenced block with pause/restart |
+| 0.1.x caching | Added relative path resolution, safety guards, buffer cache |
+| 0.1.x renderer | Switched to @rive-app/canvas & webgl/webgl2, artboard/stateMachine/animation & renderer selection |
+
+
 Planned capabilities (iterative roadmap):
 - Embed a `.riv` animation inside a markdown code block or callout.
 - Play / pause / scrub / loop controls via command palette.
@@ -46,7 +79,7 @@ Notes:
   - `src: sub/folder/file.riv` (no leading slash) also treated as relative to the note; if missing it will naturally still look like a vault path when resolved.
   - `src: /absolute/from/vaultRoot.riv` (leading slash) forces vault root.
   - Backslashes are normalized.
-- State machines / artboards not yet configurable.
+- Artboard / stateMachine / animation selection supported via block keys.
 - Basic error messages surface if the file is missing.
 
 ### Fast Deploy to Your Vault (Windows)
