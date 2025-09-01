@@ -1,14 +1,24 @@
 // Lightweight dynamic import wrapper for the Rive web runtime.
 // We keep this separate so future optimization (e.g., lazy loading) is easy.
 
-let rivePromise: Promise<any> | undefined;
+const cache: Record<string, Promise<any>> = {};
 
-export async function getRive() {
-  if (!rivePromise) {
-    // Dynamic import so plugin loads fast if user doesn't view Rive blocks immediately.
-    rivePromise = import('rive-js').then(mod => mod); // module exports constructor(s)
+export async function getRive(renderer: 'canvas'|'webgl'|'webgl2' = 'canvas') {
+  if (!cache[renderer]) {
+    let modImport: Promise<any>;
+    switch(renderer) {
+      case 'webgl2':
+        modImport = import('@rive-app/webgl2');
+        break;
+      case 'webgl':
+        modImport = import('@rive-app/webgl');
+        break;
+      default:
+        modImport = import('@rive-app/canvas');
+    }
+    cache[renderer] = modImport.then(m => m);
   }
-  return rivePromise;
+  return cache[renderer];
 }
 
 export interface RiveInstanceConfig {
@@ -17,4 +27,6 @@ export interface RiveInstanceConfig {
   artboard?: string;
   stateMachine?: string;
   loop?: boolean;
+  renderer?: 'canvas'|'webgl'|'webgl2';
+  animation?: string;
 }
