@@ -3,7 +3,7 @@ import { getRive } from './rive-loader';
 
 interface MyPluginSettings { mySetting: string; defaultAutoplay: boolean; defaultLoop: boolean; }
 const DEFAULT_SETTINGS: MyPluginSettings = { mySetting: 'default', defaultAutoplay: true, defaultLoop: true };
-interface RiveRenderedInstance { restart: () => void; pause: () => void; play: () => void; }
+interface RiveRenderedInstance { restart: () => void; pause: () => void; play: () => void; toggle: () => void; isPaused: () => boolean; }
 const riveBufferCache: Map<string, ArrayBuffer> = new Map();
 
 export default class MyPlugin extends Plugin {
@@ -14,6 +14,7 @@ export default class MyPlugin extends Plugin {
 		const status = this.addStatusBarItem(); status.setText('Rive WIP');
 		this.addCommand({ id: 'rive-test-load', name: 'Rive: Test runtime load', callback: async () => { try { const rive = await getRive(); new Notice('Rive runtime loaded'); console.log('Rive module', rive); } catch (e) { console.error(e); new Notice('Failed to load Rive runtime'); } } });
 		this.addCommand({ id: 'rive-restart-last', name: 'Rive: Restart last animation', callback: () => { if (this.lastInstance) { this.lastInstance.restart(); new Notice('Rive animation restarted'); } else new Notice('No Rive animation active'); } });
+		this.addCommand({ id: 'rive-toggle-last', name: 'Rive: Toggle play/pause last animation', callback: () => { if (this.lastInstance) { this.lastInstance.toggle(); new Notice(this.lastInstance.isPaused() ? 'Rive paused' : 'Rive playing'); } else new Notice('No Rive animation active'); } });
 				this.registerMarkdownCodeBlockProcessor('rive', async (source, el, ctx) => {
 				const cfg = parseRiveBlockConfig(source, this.settings);
 				el.addClass('rive-block');
@@ -96,7 +97,9 @@ export default class MyPlugin extends Plugin {
 							isPaused = false; playBtn.textContent = 'Pause';
 						},
 						pause: () => { if (!loaded) return; if (typeof instance?.pause === 'function') { instance.pause(); isPaused = true; playBtn.textContent = 'Play'; } },
-						play: () => { if (!loaded) return; if (typeof instance?.play === 'function') { instance.play(); isPaused = false; playBtn.textContent = 'Pause'; } }
+						play: () => { if (!loaded) return; if (typeof instance?.play === 'function') { instance.play(); isPaused = false; playBtn.textContent = 'Pause'; } },
+						toggle: () => { if (!loaded) return; isPaused ? api.play() : api.pause(); },
+						isPaused: () => isPaused
 					};
 					this.lastInstance = api;
 					playBtn.onclick = () => { if (!loaded) return; isPaused ? api.play() : api.pause(); };

@@ -19,7 +19,7 @@
 | Error handling (missing file, timeout) | ✅ (basic) |
 | Auto deploy on build/watch (env or dev.local.json) | ✅ |
 | Multiple animations/stateMachines | ✅ |
-| Hotkeys (play/pause, restart) | ❌ (planned) |
+| Hotkeys (play/pause, restart) | ✅ |
 | Frontmatter global overrides | ❌ (planned) |
 | Asset loader (hosted assets) | ❌ (planned) |
 | Playhead scrubber / progress bar | ❌ (planned) |
@@ -36,7 +36,7 @@
 
 ## Mini Roadmap (Next Implementation Order)
 1. (Done) Multiple animations / stateMachines per block (comma-separated lists)
-2. Hotkeys: global play/pause toggle & restart last animation
+2. (In progress) Hotkeys: global play/pause toggle & restart last animation
 3. Frontmatter defaults (vault/note-level: autoplay, loop, renderer)
 4. Aspect ratio & intrinsic size detection (auto height, crisp scaling)
 5. Asset loader support for hosted / referenced fonts & images
@@ -81,6 +81,7 @@ stateMachines: Interaction, HoverMachine
 Buttons (Pause / Restart) appear under the canvas. The command palette provides:
 - Rive: Test runtime load (debug)
 - Rive: Restart last animation
+- Rive: Toggle play/pause last animation
 
 Settings (under plugin settings):
 - Default autoplay
