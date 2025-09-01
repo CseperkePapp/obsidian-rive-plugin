@@ -20,7 +20,7 @@
 | Auto deploy on build/watch (env or dev.local.json) | ✅ |
 | Multiple animations/stateMachines | ✅ |
 | Hotkeys (play/pause, restart) | ✅ |
-| Frontmatter global overrides | ❌ (planned) |
+| Frontmatter global overrides | ✅ |
 | Asset loader (hosted assets) | ❌ (planned) |
 | Playhead scrubber / progress bar | ❌ (planned) |
 | Snapshot / export frame | ❌ (planned) |
@@ -37,7 +37,7 @@
 ## Mini Roadmap (Next Implementation Order)
 1. (Done) Multiple animations / stateMachines per block (comma-separated lists)
 2. (In progress) Hotkeys: global play/pause toggle & restart last animation
-3. Frontmatter defaults (vault/note-level: autoplay, loop, renderer)
+3. (Done) Frontmatter defaults (note-level: autoplay, loop, renderer)
 4. Aspect ratio & intrinsic size detection (auto height, crisp scaling)
 5. Asset loader support for hosted / referenced fonts & images
 6. Playhead scrubber + progress bar (seek + current time display)
@@ -96,6 +96,15 @@ Notes:
 - Artboard / stateMachine / animation selection supported via block keys.
   - Multiple animations: `animations: Idle, Spin` (or multiple `animation:` keys)
   - Multiple state machines: `stateMachines: Main, Hover` (or multiple `stateMachine:` keys)
+  - Frontmatter defaults: place under `rive:` group or prefixed keys (`riveAutoplay`, `riveLoop`, `riveRenderer`). Example:
+    ```yaml
+    ---
+    rive:
+      autoplay: false
+      loop: true
+      renderer: webgl2
+    ---
+    ```
 - Basic error messages surface if the file is missing.
 
 ### Fast Deploy to Your Vault (Windows)

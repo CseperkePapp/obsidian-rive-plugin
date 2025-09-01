@@ -1,8 +1,8 @@
-import { App, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import { App, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting, TFile } from 'obsidian';
 import { getRive } from './rive-loader';
 
-interface MyPluginSettings { mySetting: string; defaultAutoplay: boolean; defaultLoop: boolean; }
-const DEFAULT_SETTINGS: MyPluginSettings = { mySetting: 'default', defaultAutoplay: true, defaultLoop: true };
+interface MyPluginSettings { mySetting: string; defaultAutoplay: boolean; defaultLoop: boolean; defaultRenderer: 'canvas' | 'webgl' | 'webgl2'; }
+const DEFAULT_SETTINGS: MyPluginSettings = { mySetting: 'default', defaultAutoplay: true, defaultLoop: true, defaultRenderer: 'canvas' };
 interface RiveRenderedInstance { restart: () => void; pause: () => void; play: () => void; toggle: () => void; isPaused: () => boolean; }
 const riveBufferCache: Map<string, ArrayBuffer> = new Map();
 
@@ -16,7 +16,29 @@ export default class MyPlugin extends Plugin {
 		this.addCommand({ id: 'rive-restart-last', name: 'Rive: Restart last animation', callback: () => { if (this.lastInstance) { this.lastInstance.restart(); new Notice('Rive animation restarted'); } else new Notice('No Rive animation active'); } });
 		this.addCommand({ id: 'rive-toggle-last', name: 'Rive: Toggle play/pause last animation', callback: () => { if (this.lastInstance) { this.lastInstance.toggle(); new Notice(this.lastInstance.isPaused() ? 'Rive paused' : 'Rive playing'); } else new Notice('No Rive animation active'); } });
 				this.registerMarkdownCodeBlockProcessor('rive', async (source, el, ctx) => {
-				const cfg = parseRiveBlockConfig(source, this.settings);
+				// Derive frontmatter overrides (note-level)
+				let fmOverrides: Partial<MyPluginSettings> & { frontmatterRenderer?: string } = {};
+				try {
+					const file = ctx?.sourcePath ? this.app.vault.getAbstractFileByPath(ctx.sourcePath) : null;
+					if (file instanceof TFile) {
+						const cache = this.app.metadataCache.getFileCache(file);
+						const fm: any = cache?.frontmatter;
+						if (fm) {
+							// Support grouped under "rive" or prefixed keys
+							const group = fm.rive || {};
+							const pick = (k: string) => {
+								if (group[k] !== undefined) return group[k];
+								const pref = fm['rive' + k.charAt(0).toUpperCase() + k.slice(1)];
+								return pref;
+							};
+							if (pick('autoplay') !== undefined) fmOverrides.defaultAutoplay = !!pick('autoplay');
+							if (pick('loop') !== undefined) fmOverrides.defaultLoop = !!pick('loop');
+							if (pick('renderer') !== undefined) fmOverrides.defaultRenderer = pick('renderer');
+						}
+					}
+				} catch {}
+				const mergedDefaults: MyPluginSettings = { ...this.settings, ...fmOverrides } as MyPluginSettings;
+				const cfg = parseRiveBlockConfig(source, mergedDefaults);
 				el.addClass('rive-block');
 				const container = el.createDiv({ cls: 'rive-block-container' });
 				const canvas = container.createEl('canvas', { cls: 'rive-canvas' });
@@ -44,7 +66,7 @@ export default class MyPlugin extends Plugin {
 							arrayBuffer = await this.app.vault.adapter.readBinary(resolvedPath);
 							riveBufferCache.set(resolvedPath, arrayBuffer);
 						}
-					const rendererChoice = (cfg.renderer === 'webgl' || cfg.renderer === 'webgl2') ? cfg.renderer : 'canvas';
+					const rendererChoice = (cfg.renderer === 'webgl' || cfg.renderer === 'webgl2' || cfg.renderer === 'canvas') ? cfg.renderer : (mergedDefaults.defaultRenderer || 'canvas');
 					const riveMod: any = await getRive(rendererChoice as 'canvas'|'webgl'|'webgl2');
 					const RiveCtor: any = (riveMod && (riveMod.Rive || riveMod.default)) || riveMod;
 					// Determine loop constant if available
@@ -180,4 +202,4 @@ function resolveRivePath(raw: string, notePath: string | undefined, app: App): s
 }
 
 class SampleModal extends Modal { onOpen() { this.contentEl.setText('Woah!'); } onClose() { this.contentEl.empty(); } }
-class SampleSettingTab extends PluginSettingTab { plugin: MyPlugin; constructor(app: App, plugin: MyPlugin) { super(app, plugin); this.plugin = plugin; } display(): void { const { containerEl } = this; containerEl.empty(); new Setting(containerEl).setName('Default autoplay').setDesc('Autoplay animations when rendered').addToggle(t => t.setValue(this.plugin.settings.defaultAutoplay).onChange(async v => { this.plugin.settings.defaultAutoplay = v; await this.plugin.saveSettings(); })); new Setting(containerEl).setName('Default loop').setDesc('Loop animations by default').addToggle(t => t.setValue(this.plugin.settings.defaultLoop).onChange(async v => { this.plugin.settings.defaultLoop = v; await this.plugin.saveSettings(); })); }}
+class SampleSettingTab extends PluginSettingTab { plugin: MyPlugin; constructor(app: App, plugin: MyPlugin) { super(app, plugin); this.plugin = plugin; } display(): void { const { containerEl } = this; containerEl.empty(); new Setting(containerEl).setName('Default autoplay').setDesc('Autoplay animations when rendered').addToggle(t => t.setValue(this.plugin.settings.defaultAutoplay).onChange(async v => { this.plugin.settings.defaultAutoplay = v; await this.plugin.saveSettings(); })); new Setting(containerEl).setName('Default loop').setDesc('Loop animations by default').addToggle(t => t.setValue(this.plugin.settings.defaultLoop).onChange(async v => { this.plugin.settings.defaultLoop = v; await this.plugin.saveSettings(); })); new Setting(containerEl).setName('Default renderer').setDesc('Renderer used when block does not specify (canvas/webgl/webgl2); frontmatter can override').addDropdown(d => d.addOptions({ canvas: 'canvas', webgl: 'webgl', webgl2: 'webgl2'}).setValue(this.plugin.settings.defaultRenderer).onChange(async v => { if (v === 'canvas' || v === 'webgl' || v === 'webgl2') { this.plugin.settings.defaultRenderer = v; await this.plugin.saveSettings(); } })); }}
