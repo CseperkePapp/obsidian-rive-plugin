@@ -4,6 +4,7 @@ import { getRive } from './rive-loader';
 interface MyPluginSettings { mySetting: string; defaultAutoplay: boolean; defaultLoop: boolean; }
 const DEFAULT_SETTINGS: MyPluginSettings = { mySetting: 'default', defaultAutoplay: true, defaultLoop: true };
 interface RiveRenderedInstance { restart: () => void; pause: () => void; play: () => void; }
+const riveBufferCache: Map<string, ArrayBuffer> = new Map();
 
 export default class MyPlugin extends Plugin {
 	settings: MyPluginSettings; private lastInstance: RiveRenderedInstance | null = null;
@@ -35,7 +36,13 @@ export default class MyPlugin extends Plugin {
 							playBtn.textContent = 'Not found';
 							return;
 						}
-						const arrayBuffer = await this.app.vault.adapter.readBinary(resolvedPath);
+						let arrayBuffer: ArrayBuffer;
+						if (riveBufferCache.has(resolvedPath)) {
+							arrayBuffer = riveBufferCache.get(resolvedPath)!;
+						} else {
+							arrayBuffer = await this.app.vault.adapter.readBinary(resolvedPath);
+							riveBufferCache.set(resolvedPath, arrayBuffer);
+						}
 					const riveMod: any = await getRive();
 					const RiveCtor: any = (riveMod && (riveMod.Rive || riveMod.default)) || riveMod;
 					// Determine loop constant if available
@@ -45,6 +52,13 @@ export default class MyPlugin extends Plugin {
 						loopConst = riveMod.Loop.forever || riveMod.Loop.loop || Object.values(riveMod.Loop)[0];
 					}
 					let instance: any; let isPaused = !cfg.autoplay; let loaded = false;
+					// Resize handling
+					const resizeObserver = new ResizeObserver(() => {
+						if (!canvas.isConnected) { resizeObserver.disconnect(); return; }
+						const parentWidth = container.clientWidth;
+						canvas.style.width = parentWidth + 'px';
+					});
+					resizeObserver.observe(container);
 					const finalize = () => {
 						loaded = true;
 						playBtn.disabled = false; restartBtn.disabled = false;
@@ -66,7 +80,9 @@ export default class MyPlugin extends Plugin {
 						buffer: arrayBuffer,
 						autoplay: cfg.autoplay,
 						loop: loopConst,
-						onLoad: () => { console.log('Rive loaded', cfg.src); finalize(); }
+						artboard: cfg.artboard || undefined,
+						stateMachine: cfg.stateMachine || undefined,
+						onLoad: () => { console.log('Rive loaded', cfg.src, cfg.artboard || ''); finalize(); }
 					});
 
 					const api: RiveRenderedInstance = {
@@ -99,7 +115,7 @@ export default class MyPlugin extends Plugin {
 	async saveSettings() { await this.saveData(this.settings); }
 }
 
-function parseRiveBlockConfig(source: string, settings: MyPluginSettings): { src: string; autoplay: boolean; loop: boolean; } { const lines = source.split(/\r?\n/).map(l => l.trim()).filter(Boolean); const cfg: any = { autoplay: settings.defaultAutoplay, loop: settings.defaultLoop }; for (const line of lines) { const m = line.match(/^(\w+)\s*[:=]\s*(.+)$/); if (m) { const key = m[1]; let val: any = m[2]; if (val === 'true') val = true; else if (val === 'false') val = false; cfg[key] = val; } else if (!cfg.src && line.endsWith('.riv')) { cfg.src = line; } } return { src: cfg.src || '', autoplay: !!cfg.autoplay, loop: !!cfg.loop }; }
+function parseRiveBlockConfig(source: string, settings: MyPluginSettings): { src: string; autoplay: boolean; loop: boolean; artboard?: string; stateMachine?: string; } { const lines = source.split(/\r?\n/).map(l => l.trim()).filter(Boolean); const cfg: any = { autoplay: settings.defaultAutoplay, loop: settings.defaultLoop }; for (const line of lines) { const m = line.match(/^(\w+)\s*[:=]\s*(.+)$/); if (m) { const key = m[1]; let val: any = m[2]; if (val === 'true') val = true; else if (val === 'false') val = false; cfg[key] = val; } else if (!cfg.src && line.endsWith('.riv')) { cfg.src = line; } } return { src: cfg.src || '', autoplay: !!cfg.autoplay, loop: !!cfg.loop, artboard: cfg.artboard, stateMachine: cfg.stateMachine }; }
 
 function resolveRivePath(raw: string, notePath: string | undefined, app: App): string {
 	if (!raw) return raw;
