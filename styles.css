@@ -19,6 +19,14 @@ If your plugin does not need CSS, delete this file.
 	max-width: 100%;
 }
 
+/* Prevent text cursor when hovering interactive canvas area inside editor */
+.rive-block-container, .rive-block-container * {
+	cursor: default;
+}
+
+canvas.rive-canvas { cursor: default; }
+canvas.rive-canvas.clickable { cursor: pointer; }
+
 canvas.rive-canvas {
 	width: 400px;
 	height: auto;
