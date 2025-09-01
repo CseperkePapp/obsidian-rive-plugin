@@ -1,4 +1,5 @@
 import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import { getRive } from './rive-loader';
 
 // Remember to rename these classes and interfaces!
 
@@ -61,6 +62,20 @@ export default class MyPlugin extends Plugin {
 
 					// This command will only show up in Command Palette when the check function returns true
 					return true;
+				}
+			}
+		});
+		this.addCommand({
+			id: 'rive-test-load',
+			name: 'Rive: Test runtime load',
+			callback: async () => {
+				try {
+					const rive = await getRive();
+					new Notice('Rive runtime loaded. Version unknown');
+					console.log('Rive module', rive);
+				} catch (e) {
+					console.error(e);
+					new Notice('Failed to load Rive runtime');
 				}
 			}
 		});
