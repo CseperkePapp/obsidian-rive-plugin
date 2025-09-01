@@ -34,6 +34,17 @@
 | 0.1.x caching | Added relative path resolution, safety guards, buffer cache |
 | 0.1.x renderer | Switched to @rive-app/canvas & webgl/webgl2, artboard/stateMachine/animation & renderer selection |
 
+## Mini Roadmap (Next Implementation Order)
+1. Multiple animations / stateMachines per block (comma-separated lists)
+2. Hotkeys: global play/pause toggle & restart last animation
+3. Frontmatter defaults (vault/note-level: autoplay, loop, renderer)
+4. Aspect ratio & intrinsic size detection (auto height, crisp scaling)
+5. Asset loader support for hosted / referenced fonts & images
+6. Playhead scrubber + progress bar (seek + current time display)
+7. Snapshot / export current frame to PNG in vault
+8. Performance: pause or throttle animations when pane not visible / unfocused
+
+
 
 Planned capabilities (iterative roadmap):
 - Embed a `.riv` animation inside a markdown code block or callout.
