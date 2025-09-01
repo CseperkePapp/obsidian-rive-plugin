@@ -59,21 +59,27 @@ export default class MyPlugin extends Plugin {
 				el.addClass('rive-block');
 				const container = el.createDiv({ cls: 'rive-block-container' });
 				const canvas = container.createEl('canvas', { cls: 'rive-canvas' });
-				const controls = container.createDiv({ cls: 'rive-controls' });
-				const playBtn = controls.createEl('button', { text: 'Loading…' });
-				const restartBtn = controls.createEl('button', { text: 'Restart' });
-					const pathSpan = controls.createSpan({ text: cfg.src ? ` ${cfg.src}` : '' });
-				playBtn.disabled = true; restartBtn.disabled = true;
+				let controls: HTMLDivElement | null = null;
+				let playBtn: HTMLButtonElement | null = null;
+				let restartBtn: HTMLButtonElement | null = null;
+				let pathSpan: HTMLSpanElement | null = null;
+				if (cfg.showControls) {
+					controls = container.createDiv({ cls: 'rive-controls' });
+					playBtn = controls.createEl('button', { text: 'Loading…' });
+					restartBtn = controls.createEl('button', { text: 'Restart' });
+					pathSpan = controls.createSpan({ text: cfg.src ? ` ${cfg.src}` : '' });
+					playBtn.disabled = true; restartBtn.disabled = true;
+				}
 				if (!cfg.src) { container.createDiv({ cls: 'rive-error', text: 'Missing src (src: path/to/file.riv)' }); return; }
 				try {
 						const resolvedPath = resolveRivePath(cfg.src, ctx?.sourcePath, this.app);
 						if (resolvedPath !== cfg.src) {
-							pathSpan.textContent = ' ' + resolvedPath; // show resolved path
+							if (pathSpan) pathSpan.textContent = ' ' + resolvedPath; // show resolved path
 						}
 						const exists = await this.app.vault.adapter.exists(resolvedPath);
 						if (!exists) {
 							container.createDiv({ cls: 'rive-error', text: `File not found: ${resolvedPath}` });
-							playBtn.textContent = 'Not found';
+							if (playBtn) playBtn.textContent = 'Not found';
 							return;
 						}
 						let arrayBuffer: ArrayBuffer;
@@ -113,8 +119,10 @@ export default class MyPlugin extends Plugin {
 					resizeObserver.observe(container);
 					const finalize = () => {
 						loaded = true;
-						playBtn.disabled = false; restartBtn.disabled = false;
-						playBtn.textContent = isPaused ? 'Play' : 'Pause';
+						if (playBtn && restartBtn) {
+							playBtn.disabled = false; restartBtn.disabled = false;
+							playBtn.textContent = isPaused ? 'Play' : 'Pause';
+						}
 						applySize();
 						// Attempt artboard fallback detection (API varies across versions)
 						try {
@@ -181,10 +189,10 @@ export default class MyPlugin extends Plugin {
 							if (!loaded) return;
 							try { if (typeof instance?.reset === 'function') instance.reset(); } catch {}
 							if (typeof instance?.play === 'function') instance.play();
-							isPaused = false; playBtn.textContent = 'Pause';
+							isPaused = false; if (playBtn) playBtn.textContent = 'Pause';
 						},
-						pause: () => { if (!loaded) return; if (typeof instance?.pause === 'function') { instance.pause(); isPaused = true; playBtn.textContent = 'Play'; } },
-						play: () => { if (!loaded) return; if (typeof instance?.play === 'function') { instance.play(); isPaused = false; playBtn.textContent = 'Pause'; } },
+						pause: () => { if (!loaded) return; if (typeof instance?.pause === 'function') { instance.pause(); isPaused = true; if (playBtn) playBtn.textContent = 'Play'; } },
+						play: () => { if (!loaded) return; if (typeof instance?.play === 'function') { instance.play(); isPaused = false; if (playBtn) playBtn.textContent = 'Pause'; } },
 						toggle: () => { if (!loaded) return; isPaused ? api.play() : api.pause(); },
 						isPaused: () => isPaused,
 						stopRendering: () => { try { (instance as any)?.stopRendering?.(); } catch {} },
@@ -203,14 +211,14 @@ export default class MyPlugin extends Plugin {
 						}, { threshold: 0.01 });
 						io.observe(canvas);
 					}
-					playBtn.onclick = () => { if (!loaded) return; isPaused ? api.play() : api.pause(); };
-					restartBtn.onclick = () => api.restart();
+					if (playBtn) playBtn.onclick = () => { if (!loaded) return; isPaused ? api.play() : api.pause(); };
+					if (restartBtn) restartBtn.onclick = () => api.restart();
 					// Safety timeout: if onLoad never fires, show error.
-					window.setTimeout(() => { if (!loaded) { playBtn.textContent = 'Error'; const ov = container.createDiv({ cls: 'rive-overlay-error', text: 'Load timeout' }); ov.onclick = () => ov.remove(); } }, 8000);
+					window.setTimeout(() => { if (!loaded) { if (playBtn) playBtn.textContent = 'Error'; const ov = container.createDiv({ cls: 'rive-overlay-error', text: 'Load timeout' }); ov.onclick = () => ov.remove(); } }, 8000);
 				} catch (e) {
 					console.error('Failed to render Rive', e);
 					container.createDiv({ cls: 'rive-error', text: 'Failed to load Rive file'});
-					playBtn.textContent = 'Error';
+					if (playBtn) playBtn.textContent = 'Error';
 				}
 			});
 		this.addSettingTab(new SampleSettingTab(this.app, this));
@@ -222,7 +230,7 @@ export default class MyPlugin extends Plugin {
 	async saveSettings() { await this.saveData(this.settings); }
 }
 
-function parseRiveBlockConfig(source: string, settings: MyPluginSettings): { src: string; autoplay: boolean; loop: boolean; artboard?: string; stateMachines?: string[]; renderer?: string; animations?: string[]; ratio?: number; width?: number; height?: number; fit?: string; alignment?: string; assetsBase?: string; } {
+function parseRiveBlockConfig(source: string, settings: MyPluginSettings): { src: string; autoplay: boolean; loop: boolean; artboard?: string; stateMachines?: string[]; renderer?: string; animations?: string[]; ratio?: number; width?: number; height?: number; fit?: string; alignment?: string; assetsBase?: string; showControls: boolean; } {
 	const lines = source.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
 	const raw: Record<string, any> = { autoplay: settings.defaultAutoplay, loop: settings.defaultLoop };
 	for (const line of lines) {
@@ -269,6 +277,17 @@ function parseRiveBlockConfig(source: string, settings: MyPluginSettings): { src
 	if (!ratio && width && height) {
 		if (height !== 0) ratio = width / height;
 	}
+	// showControls logic: default true unless explicit false / ui none / controls: false / minimal true
+	let showControls = true;
+	const uiVal = (raw.ui || raw.UI || '').toString().toLowerCase();
+	if (uiVal === 'none' || uiVal === 'minimal' || uiVal === 'off') showControls = false;
+	if (raw.controls !== undefined) {
+		if (typeof raw.controls === 'string') {
+			const v = raw.controls.toLowerCase();
+			if (v === 'false' || v === 'off' || v === '0' || v === 'none') showControls = false;
+		} else if (raw.controls === false) showControls = false;
+	}
+	if (raw.minimal === true || raw.minimal === 'true') showControls = false;
 	return {
 		src: raw.src || '',
 		autoplay: !!raw.autoplay,
@@ -282,7 +301,8 @@ function parseRiveBlockConfig(source: string, settings: MyPluginSettings): { src
 		height: height && isFinite(height) && height > 0 ? height : undefined,
 		fit: raw.fit,
 		alignment: raw.alignment,
-		assetsBase: raw.assetsBase || raw.assetBase || raw.assetsDir
+		assetsBase: raw.assetsBase || raw.assetBase || raw.assetsDir,
+		showControls
 	};
 }
 

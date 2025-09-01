@@ -81,6 +81,7 @@ fit: contain
 alignment: center
 renderer: webgl2
 assetsBase: /Assets/RiveImages
+controls: false
 ```
 ````
 
@@ -115,6 +116,7 @@ Notes:
  - Layout: `fit:` (contain, cover, fill, fitWidth, fitHeight, none, scaleDown) & `alignment:` (center, topLeft, bottomRight, etc.) forwarded to runtime Layout when supported.
  - Performance: rendering auto-pauses when tab hidden or canvas off-screen (visibility + intersection observers).
  - Assets: `assetsBase:` can be a vault-relative path (`/Folder/Sub`), note-relative path (`./assets`), or URL (`https://example.com/rive-assets`). Individual asset references inside the Rive file resolved against this base; absolute `http(s)` URLs in the file are fetched directly.
+ - UI suppression: add `controls: false` or `ui: none` (or `minimal: true`) for a pure canvas with no buttons.
  - Aspect sizing:
    - `ratio:` supports fractional (`16/9`) or decimal (`1.777`)
    - Provide `width:` to cap width (otherwise full container width)
