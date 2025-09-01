@@ -39,10 +39,7 @@
 2. (In progress) Hotkeys: global play/pause toggle & restart last animation
 3. (Done) Frontmatter defaults (note-level: autoplay, loop, renderer)
 4. (Done) Aspect ratio & intrinsic size detection (auto height, crisp scaling)
-5. Asset loader support for hosted / referenced fonts & images
-6. Playhead scrubber + progress bar (seek + current time display)
-7. Snapshot / export current frame to PNG in vault
-8. Performance: pause or throttle animations when pane not visible / unfocused
+<!-- Removed items: Asset loader, scrubber, snapshot/export, performance pause (implemented/declined) -->
 
 
 
