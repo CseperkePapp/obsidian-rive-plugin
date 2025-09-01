@@ -42,7 +42,18 @@ const context = await esbuild.context({
 });
 
 async function copyToVault() {
-	const vaultPath = process.env.RIVE_VAULT || process.env.DEV_VAULT;
+	let vaultPath = process.env.RIVE_VAULT || process.env.DEV_VAULT;
+	// dev.local.json override
+	if (!vaultPath) {
+		try {
+			const fs = await import('fs');
+			if (fs.existsSync('dev.local.json')) {
+				const raw = fs.readFileSync('dev.local.json','utf8');
+				const json = JSON.parse(raw);
+				vaultPath = json.vaultPath;
+			}
+		} catch {}
+	}
 	if (!vaultPath) return;
 	try {
 		const fs = await import('fs');

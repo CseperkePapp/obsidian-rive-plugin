@@ -86,6 +86,14 @@ npm run dev
 ```
 Each rebuild copies `main.js`, `manifest.json`, `styles.css` directly into the vault plugin folder.
 
+For a repo-local (non-env-var) setup create `dev.local.json` (not committed):
+```json
+{
+  "vaultPath": "C:/Users/Cseper/Documents/Obsidian/Larissa/Larissa"
+}
+```
+The build script will auto-detect this file if env vars are not set.
+
 ---
 
 Original sample plugin README content preserved below for reference while scaffolding is retained:
