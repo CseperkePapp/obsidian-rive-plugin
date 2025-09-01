@@ -21,7 +21,7 @@
 | Multiple animations/stateMachines | ✅ |
 | Hotkeys (play/pause, restart) | ✅ |
 | Frontmatter global overrides | ✅ |
-| Asset loader (hosted assets) | ❌ (planned) |
+| Asset loader (hosted assets) | ✅ |
 | Playhead scrubber / progress bar | ❌ (planned) |
 | Snapshot / export frame | ❌ (planned) |
 | Performance: pause offscreen | ✅ |
@@ -80,6 +80,7 @@ width: 640
 fit: contain
 alignment: center
 renderer: webgl2
+assetsBase: /Assets/RiveImages
 ```
 ````
 
@@ -113,6 +114,7 @@ Notes:
  - Basic error messages surface if the file is missing.
  - Layout: `fit:` (contain, cover, fill, fitWidth, fitHeight, none, scaleDown) & `alignment:` (center, topLeft, bottomRight, etc.) forwarded to runtime Layout when supported.
  - Performance: rendering auto-pauses when tab hidden or canvas off-screen (visibility + intersection observers).
+ - Assets: `assetsBase:` can be a vault-relative path (`/Folder/Sub`), note-relative path (`./assets`), or URL (`https://example.com/rive-assets`). Individual asset references inside the Rive file resolved against this base; absolute `http(s)` URLs in the file are fetched directly.
  - Aspect sizing:
    - `ratio:` supports fractional (`16/9`) or decimal (`1.777`)
    - Provide `width:` to cap width (otherwise full container width)

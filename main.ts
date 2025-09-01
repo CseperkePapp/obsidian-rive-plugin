@@ -137,12 +137,38 @@ export default class MyPlugin extends Plugin {
 					const alignment = alignEnum[Object.keys(alignEnum).find(k => k.toLowerCase() === alignKey) || 'Center'];
 					let layout: any = undefined;
 					try { if (riveMod?.Layout) layout = new riveMod.Layout({ fit, alignment }); } catch {}
+					// Asset loader support (local vault path or remote HTTP). Allows block key assetsBase: path/to/assets or /root/path or URL base.
+					let assetLoader: any = undefined;
+					if (cfg.assetsBase) {
+						const baseRaw = cfg.assetsBase.trim();
+						const adapter = this.app.vault.adapter;
+						const normalizeBase = (b: string) => b.replace(/\\+/g,'/').replace(/\/$/, '');
+						const base = normalizeBase(baseRaw);
+						assetLoader = {
+							load: async (assetRef: any) => {
+								try {
+									let name = '';
+									if (typeof assetRef === 'string') name = assetRef; else if (assetRef?.fileName) name = assetRef.fileName; else if (assetRef?.name) name = assetRef.name; else if (assetRef?.src) name = assetRef.src;
+									if (!name) return null;
+									if (/^https?:\/\//i.test(name)) { const r = await fetch(name); return await r.arrayBuffer(); }
+									// If base is URL use fetch
+									if (/^https?:\/\//i.test(base)) { const r = await fetch(base + '/' + name); return await r.arrayBuffer(); }
+									const resolvedBase = base.startsWith('/') ? base.substring(1) : resolveRivePath(base, ctx?.sourcePath, this.app);
+									const full = (resolvedBase.replace(/\/$/,'') + '/' + name.replace(/^\/+/, '')).replace(/\/+/g,'/');
+									if (await adapter.exists(full)) { return await adapter.readBinary(full); }
+									return null;
+								} catch(e) { console.warn('Rive asset load failed', e); return null; }
+							},
+							loadAsset: async (asset: any) => assetLoader.load(asset)
+						};
+					}
 					const ctorParams: any = {
 						canvas,
 						buffer: arrayBuffer,
 						autoplay: cfg.autoplay,
 						loop: loopConst,
 						layout,
+						assetLoader,
 						onLoad: () => { console.log('Rive loaded', cfg.src, cfg.artboard || '', cfg.renderer || ''); instance?.resizeDrawingSurfaceToCanvas?.(); finalize(); }
 					};
 					if (cfg.artboard) ctorParams.artboard = cfg.artboard;
@@ -196,7 +222,7 @@ export default class MyPlugin extends Plugin {
 	async saveSettings() { await this.saveData(this.settings); }
 }
 
-function parseRiveBlockConfig(source: string, settings: MyPluginSettings): { src: string; autoplay: boolean; loop: boolean; artboard?: string; stateMachines?: string[]; renderer?: string; animations?: string[]; ratio?: number; width?: number; height?: number; fit?: string; alignment?: string; } {
+function parseRiveBlockConfig(source: string, settings: MyPluginSettings): { src: string; autoplay: boolean; loop: boolean; artboard?: string; stateMachines?: string[]; renderer?: string; animations?: string[]; ratio?: number; width?: number; height?: number; fit?: string; alignment?: string; assetsBase?: string; } {
 	const lines = source.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
 	const raw: Record<string, any> = { autoplay: settings.defaultAutoplay, loop: settings.defaultLoop };
 	for (const line of lines) {
@@ -255,7 +281,8 @@ function parseRiveBlockConfig(source: string, settings: MyPluginSettings): { src
 		width: width && isFinite(width) && width > 0 ? width : undefined,
 		height: height && isFinite(height) && height > 0 ? height : undefined,
 		fit: raw.fit,
-		alignment: raw.alignment
+		alignment: raw.alignment,
+		assetsBase: raw.assetsBase || raw.assetBase || raw.assetsDir
 	};
 }
 
