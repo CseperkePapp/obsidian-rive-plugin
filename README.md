@@ -24,7 +24,7 @@
 | Asset loader (hosted assets) | ❌ (planned) |
 | Playhead scrubber / progress bar | ❌ (planned) |
 | Snapshot / export frame | ❌ (planned) |
-| Performance: pause offscreen | ❌ (planned) |
+| Performance: pause offscreen | ✅ |
 
 ## Quick Changelog (WIP)
 | Version (dev) | Highlights |
@@ -77,6 +77,9 @@ animations: Idle, Bounce, Spin
 stateMachines: Interaction, HoverMachine
 ratio: 16/9
 width: 640
+fit: contain
+alignment: center
+renderer: webgl2
 ```
 ````
 
@@ -107,7 +110,9 @@ Notes:
       renderer: webgl2
     ---
     ```
-- Basic error messages surface if the file is missing.
+ - Basic error messages surface if the file is missing.
+ - Layout: `fit:` (contain, cover, fill, fitWidth, fitHeight, none, scaleDown) & `alignment:` (center, topLeft, bottomRight, etc.) forwarded to runtime Layout when supported.
+ - Performance: rendering auto-pauses when tab hidden or canvas off-screen (visibility + intersection observers).
  - Aspect sizing:
    - `ratio:` supports fractional (`16/9`) or decimal (`1.777`)
    - Provide `width:` to cap width (otherwise full container width)

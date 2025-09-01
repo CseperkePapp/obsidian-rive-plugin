@@ -1,9 +1,10 @@
 import { App, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting, TFile } from 'obsidian';
 import { getRive } from './rive-loader';
 
-interface MyPluginSettings { mySetting: string; defaultAutoplay: boolean; defaultLoop: boolean; defaultRenderer: 'canvas' | 'webgl' | 'webgl2'; }
-const DEFAULT_SETTINGS: MyPluginSettings = { mySetting: 'default', defaultAutoplay: true, defaultLoop: true, defaultRenderer: 'canvas' };
-interface RiveRenderedInstance { restart: () => void; pause: () => void; play: () => void; toggle: () => void; isPaused: () => boolean; }
+interface MyPluginSettings { mySetting: string; defaultAutoplay: boolean; defaultLoop: boolean; defaultRenderer: 'canvas' | 'webgl' | 'webgl2'; enableHotkeys: boolean; defaultFit: string; defaultAlignment: string; }
+const DEFAULT_SETTINGS: MyPluginSettings = { mySetting: 'default', defaultAutoplay: true, defaultLoop: true, defaultRenderer: 'canvas', enableHotkeys: true, defaultFit: 'contain', defaultAlignment: 'center' };
+interface RiveRenderedInstance { restart: () => void; pause: () => void; play: () => void; toggle: () => void; isPaused: () => boolean; stopRendering?: () => void; startRendering?: () => void; element: HTMLCanvasElement; dispose: () => void; }
+const activeRiveInstances: Set<RiveRenderedInstance> = new Set();
 const riveBufferCache: Map<string, ArrayBuffer> = new Map();
 
 export default class MyPlugin extends Plugin {
@@ -15,6 +16,22 @@ export default class MyPlugin extends Plugin {
 		this.addCommand({ id: 'rive-test-load', name: 'Rive: Test runtime load', callback: async () => { try { const rive = await getRive(); new Notice('Rive runtime loaded'); console.log('Rive module', rive); } catch (e) { console.error(e); new Notice('Failed to load Rive runtime'); } } });
 		this.addCommand({ id: 'rive-restart-last', name: 'Rive: Restart last animation', callback: () => { if (this.lastInstance) { this.lastInstance.restart(); new Notice('Rive animation restarted'); } else new Notice('No Rive animation active'); } });
 		this.addCommand({ id: 'rive-toggle-last', name: 'Rive: Toggle play/pause last animation', callback: () => { if (this.lastInstance) { this.lastInstance.toggle(); new Notice(this.lastInstance.isPaused() ? 'Rive paused' : 'Rive playing'); } else new Notice('No Rive animation active'); } });
+
+		// Global hotkeys (optional)
+		window.addEventListener('keydown', (e) => {
+			if (!this.settings.enableHotkeys) return;
+			if (!this.lastInstance) return;
+			if (['INPUT','TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) return;
+			if (e.key === ' ') { e.preventDefault(); this.lastInstance.toggle(); }
+			else if (e.key.toLowerCase() === 'r') { e.preventDefault(); this.lastInstance.restart(); }
+		});
+		// Page visibility performance pause
+		const visHandler = () => {
+			for (const inst of activeRiveInstances) {
+				try { if (document.hidden) inst.stopRendering?.(); else inst.startRendering?.(); } catch {}
+			}
+		};
+		document.addEventListener('visibilitychange', visHandler);
 				this.registerMarkdownCodeBlockProcessor('rive', async (source, el, ctx) => {
 				// Derive frontmatter overrides (note-level)
 				let fmOverrides: Partial<MyPluginSettings> & { frontmatterRenderer?: string } = {};
@@ -111,11 +128,21 @@ export default class MyPlugin extends Plugin {
 							}
 						} catch {}
 					};
+					// Fit / Alignment mapping to runtime enums if available
+					const fitKey = (cfg.fit || mergedDefaults.defaultFit || 'contain').toLowerCase();
+					const alignKey = (cfg.alignment || mergedDefaults.defaultAlignment || 'center').toLowerCase();
+					const fitEnum = riveMod?.Fit || {};
+					const alignEnum = riveMod?.Alignment || {};
+					const fit = fitEnum[Object.keys(fitEnum).find(k => k.toLowerCase() === fitKey) || 'Contain'];
+					const alignment = alignEnum[Object.keys(alignEnum).find(k => k.toLowerCase() === alignKey) || 'Center'];
+					let layout: any = undefined;
+					try { if (riveMod?.Layout) layout = new riveMod.Layout({ fit, alignment }); } catch {}
 					const ctorParams: any = {
 						canvas,
 						buffer: arrayBuffer,
 						autoplay: cfg.autoplay,
 						loop: loopConst,
+						layout,
 						onLoad: () => { console.log('Rive loaded', cfg.src, cfg.artboard || '', cfg.renderer || ''); instance?.resizeDrawingSurfaceToCanvas?.(); finalize(); }
 					};
 					if (cfg.artboard) ctorParams.artboard = cfg.artboard;
@@ -133,9 +160,23 @@ export default class MyPlugin extends Plugin {
 						pause: () => { if (!loaded) return; if (typeof instance?.pause === 'function') { instance.pause(); isPaused = true; playBtn.textContent = 'Play'; } },
 						play: () => { if (!loaded) return; if (typeof instance?.play === 'function') { instance.play(); isPaused = false; playBtn.textContent = 'Pause'; } },
 						toggle: () => { if (!loaded) return; isPaused ? api.play() : api.pause(); },
-						isPaused: () => isPaused
+						isPaused: () => isPaused,
+						stopRendering: () => { try { (instance as any)?.stopRendering?.(); } catch {} },
+						startRendering: () => { try { (instance as any)?.startRendering?.(); if (!isPaused) (instance as any)?.play?.(); } catch {} },
+						element: canvas,
+						dispose: () => { activeRiveInstances.delete(api); io?.disconnect(); }
 					};
 					this.lastInstance = api;
+					activeRiveInstances.add(api);
+					// IntersectionObserver for off-screen pause
+					let io: IntersectionObserver | null = null;
+					if ('IntersectionObserver' in window) {
+						io = new IntersectionObserver(entries => {
+							const entry = entries[0];
+							if (!entry.isIntersecting) api.stopRendering?.(); else api.startRendering?.();
+						}, { threshold: 0.01 });
+						io.observe(canvas);
+					}
 					playBtn.onclick = () => { if (!loaded) return; isPaused ? api.play() : api.pause(); };
 					restartBtn.onclick = () => api.restart();
 					// Safety timeout: if onLoad never fires, show error.
@@ -155,7 +196,7 @@ export default class MyPlugin extends Plugin {
 	async saveSettings() { await this.saveData(this.settings); }
 }
 
-function parseRiveBlockConfig(source: string, settings: MyPluginSettings): { src: string; autoplay: boolean; loop: boolean; artboard?: string; stateMachines?: string[]; renderer?: string; animations?: string[]; ratio?: number; width?: number; height?: number; } {
+function parseRiveBlockConfig(source: string, settings: MyPluginSettings): { src: string; autoplay: boolean; loop: boolean; artboard?: string; stateMachines?: string[]; renderer?: string; animations?: string[]; ratio?: number; width?: number; height?: number; fit?: string; alignment?: string; } {
 	const lines = source.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
 	const raw: Record<string, any> = { autoplay: settings.defaultAutoplay, loop: settings.defaultLoop };
 	for (const line of lines) {
@@ -212,7 +253,9 @@ function parseRiveBlockConfig(source: string, settings: MyPluginSettings): { src
 		stateMachines: stateMs.length ? Array.from(new Set(stateMs)) : undefined,
 		ratio,
 		width: width && isFinite(width) && width > 0 ? width : undefined,
-		height: height && isFinite(height) && height > 0 ? height : undefined
+		height: height && isFinite(height) && height > 0 ? height : undefined,
+		fit: raw.fit,
+		alignment: raw.alignment
 	};
 }
 
@@ -234,4 +277,4 @@ function resolveRivePath(raw: string, notePath: string | undefined, app: App): s
 }
 
 class SampleModal extends Modal { onOpen() { this.contentEl.setText('Woah!'); } onClose() { this.contentEl.empty(); } }
-class SampleSettingTab extends PluginSettingTab { plugin: MyPlugin; constructor(app: App, plugin: MyPlugin) { super(app, plugin); this.plugin = plugin; } display(): void { const { containerEl } = this; containerEl.empty(); new Setting(containerEl).setName('Default autoplay').setDesc('Autoplay animations when rendered').addToggle(t => t.setValue(this.plugin.settings.defaultAutoplay).onChange(async v => { this.plugin.settings.defaultAutoplay = v; await this.plugin.saveSettings(); })); new Setting(containerEl).setName('Default loop').setDesc('Loop animations by default').addToggle(t => t.setValue(this.plugin.settings.defaultLoop).onChange(async v => { this.plugin.settings.defaultLoop = v; await this.plugin.saveSettings(); })); new Setting(containerEl).setName('Default renderer').setDesc('Renderer used when block does not specify (canvas/webgl/webgl2); frontmatter can override').addDropdown(d => d.addOptions({ canvas: 'canvas', webgl: 'webgl', webgl2: 'webgl2'}).setValue(this.plugin.settings.defaultRenderer).onChange(async v => { if (v === 'canvas' || v === 'webgl' || v === 'webgl2') { this.plugin.settings.defaultRenderer = v; await this.plugin.saveSettings(); } })); }}
+class SampleSettingTab extends PluginSettingTab { plugin: MyPlugin; constructor(app: App, plugin: MyPlugin) { super(app, plugin); this.plugin = plugin; } display(): void { const { containerEl } = this; containerEl.empty(); new Setting(containerEl).setName('Default autoplay').setDesc('Autoplay animations when rendered').addToggle(t => t.setValue(this.plugin.settings.defaultAutoplay).onChange(async v => { this.plugin.settings.defaultAutoplay = v; await this.plugin.saveSettings(); })); new Setting(containerEl).setName('Default loop').setDesc('Loop animations by default').addToggle(t => t.setValue(this.plugin.settings.defaultLoop).onChange(async v => { this.plugin.settings.defaultLoop = v; await this.plugin.saveSettings(); })); new Setting(containerEl).setName('Default renderer').setDesc('Renderer used when block does not specify (canvas/webgl/webgl2); frontmatter can override').addDropdown(d => d.addOptions({ canvas: 'canvas', webgl: 'webgl', webgl2: 'webgl2'}).setValue(this.plugin.settings.defaultRenderer).onChange(async v => { if (v === 'canvas' || v === 'webgl' || v === 'webgl2') { this.plugin.settings.defaultRenderer = v; await this.plugin.saveSettings(); } })); new Setting(containerEl).setName('Enable hotkeys').setDesc('Global space = toggle, R = restart (last animation)').addToggle(t => t.setValue(this.plugin.settings.enableHotkeys).onChange(async v => { this.plugin.settings.enableHotkeys = v; await this.plugin.saveSettings(); })); new Setting(containerEl).setName('Default fit').setDesc('Layout fit (contain, cover, fill, fitWidth, fitHeight, none, scaleDown)').addText(t => t.setPlaceholder('contain').setValue(this.plugin.settings.defaultFit).onChange(async v => { this.plugin.settings.defaultFit = v; await this.plugin.saveSettings(); })); new Setting(containerEl).setName('Default alignment').setDesc('Layout alignment (center, topLeft, bottomRight, etc.)').addText(t => t.setPlaceholder('center').setValue(this.plugin.settings.defaultAlignment).onChange(async v => { this.plugin.settings.defaultAlignment = v; await this.plugin.saveSettings(); })); }}
