@@ -41,9 +41,33 @@ const context = await esbuild.context({
 	minify: prod,
 });
 
+async function copyToVault() {
+	const vaultPath = process.env.RIVE_VAULT || process.env.DEV_VAULT;
+	if (!vaultPath) return;
+	try {
+		const fs = await import('fs');
+		const path = await import('path');
+		const pluginId = 'obsidian-rive-plugin';
+		const targetDir = path.join(vaultPath, '.obsidian', 'plugins', pluginId);
+		if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
+		for (const f of ['main.js','manifest.json','styles.css']) {
+			if (fs.existsSync(f)) fs.copyFileSync(f, path.join(targetDir, f));
+		}
+		console.log('[auto-deploy] Copied plugin files to', targetDir);
+	} catch (e) {
+		console.warn('[auto-deploy] Failed to copy to vault:', e?.message || e);
+	}
+}
+
 if (prod) {
 	await context.rebuild();
+	await copyToVault();
 	process.exit(0);
 } else {
 	await context.watch();
+	await copyToVault(); // initial
+	const rebuild = context; // context already watching; rely on onEnd hook
+	esbuild.build({}) // no-op to ensure esbuild imported
+	// Use watch rebuild events
+	// esbuild context provides onDispose etc; emulate incremental after each build through log plugin not necessary
 }

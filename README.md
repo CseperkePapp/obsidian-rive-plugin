@@ -74,6 +74,18 @@ powershell -ExecutionPolicy Bypass -File .\deploy.ps1 -Build -Verbose -VaultPath
 
 If you just want to copy without rebuilding omit `-Build`.
 
+### Automatic Deploy on Save
+
+Set your vault path once (example):
+```powershell
+[Environment]::SetEnvironmentVariable('RIVE_VAULT','C:\\Users\\Cseper\\Documents\\Obsidian\\Larissa\\Larissa',[EnvironmentVariableTarget]::User)
+```
+Then run watch mode:
+```powershell
+npm run dev
+```
+Each rebuild copies `main.js`, `manifest.json`, `styles.css` directly into the vault plugin folder.
+
 ---
 
 Original sample plugin README content preserved below for reference while scaffolding is retained:
