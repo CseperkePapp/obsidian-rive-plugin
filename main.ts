@@ -84,8 +84,8 @@ export default class MyPlugin extends Plugin {
 						onLoad: () => { console.log('Rive loaded', cfg.src, cfg.artboard || '', cfg.renderer || ''); instance?.resizeDrawingSurfaceToCanvas?.(); finalize(); }
 					};
 					if (cfg.artboard) ctorParams.artboard = cfg.artboard;
-					if (cfg.stateMachine) ctorParams.stateMachines = cfg.stateMachine; // runtime expects plural sometimes
-					if (cfg.animation) ctorParams.animations = cfg.animation;
+					if (cfg.stateMachines && cfg.stateMachines.length) ctorParams.stateMachines = cfg.stateMachines.length === 1 ? cfg.stateMachines[0] : cfg.stateMachines;
+					if (cfg.animations && cfg.animations.length) ctorParams.animations = cfg.animations.length === 1 ? cfg.animations[0] : cfg.animations;
 					instance = new RiveCtor(ctorParams);
 
 					const api: RiveRenderedInstance = {
@@ -118,7 +118,46 @@ export default class MyPlugin extends Plugin {
 	async saveSettings() { await this.saveData(this.settings); }
 }
 
-function parseRiveBlockConfig(source: string, settings: MyPluginSettings): { src: string; autoplay: boolean; loop: boolean; artboard?: string; stateMachine?: string; renderer?: string; animation?: string; } { const lines = source.split(/\r?\n/).map(l => l.trim()).filter(Boolean); const cfg: any = { autoplay: settings.defaultAutoplay, loop: settings.defaultLoop }; for (const line of lines) { const m = line.match(/^(\w+)\s*[:=]\s*(.+)$/); if (m) { const key = m[1]; let val: any = m[2]; if (val === 'true') val = true; else if (val === 'false') val = false; cfg[key] = val; } else if (!cfg.src && line.endsWith('.riv')) { cfg.src = line; } } return { src: cfg.src || '', autoplay: !!cfg.autoplay, loop: !!cfg.loop, artboard: cfg.artboard, stateMachine: cfg.stateMachine, renderer: cfg.renderer, animation: cfg.animation }; }
+function parseRiveBlockConfig(source: string, settings: MyPluginSettings): { src: string; autoplay: boolean; loop: boolean; artboard?: string; stateMachines?: string[]; renderer?: string; animations?: string[]; } {
+	const lines = source.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+	const raw: Record<string, any> = { autoplay: settings.defaultAutoplay, loop: settings.defaultLoop };
+	for (const line of lines) {
+		const m = line.match(/^(\w+)\s*[:=]\s*(.+)$/);
+		if (m) {
+			const key = m[1];
+			let val: any = m[2];
+			if (val === 'true') val = true; else if (val === 'false') val = false;
+			raw[key] = val;
+		} else if (!raw.src && line.endsWith('.riv')) {
+			raw.src = line;
+		}
+	}
+	// Normalization: support singular or plural keys and comma-separated lists
+	const toList = (v: any): string[] | undefined => {
+		if (!v) return undefined;
+		if (Array.isArray(v)) return v.filter(Boolean);
+		if (typeof v === 'string') return v.split(',').map(s => s.trim()).filter(Boolean);
+		return undefined;
+	};
+	// Merge animation / animations
+	const anims = [
+		... (toList(raw.animation) || []),
+		... (toList(raw.animations) || [])
+	];
+	const stateMs = [
+		... (toList(raw.stateMachine) || []),
+		... (toList(raw.stateMachines) || [])
+	];
+	return {
+		src: raw.src || '',
+		autoplay: !!raw.autoplay,
+		loop: !!raw.loop,
+		artboard: raw.artboard,
+		renderer: raw.renderer,
+		animations: anims.length ? Array.from(new Set(anims)) : undefined,
+		stateMachines: stateMs.length ? Array.from(new Set(stateMs)) : undefined
+	};
+}
 
 function resolveRivePath(raw: string, notePath: string | undefined, app: App): string {
 	if (!raw) return raw;

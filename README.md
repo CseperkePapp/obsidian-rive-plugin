@@ -18,7 +18,7 @@
 | Auto-resize to container width | ✅ |
 | Error handling (missing file, timeout) | ✅ (basic) |
 | Auto deploy on build/watch (env or dev.local.json) | ✅ |
-| Multiple animations/stateMachines | ❌ (planned) |
+| Multiple animations/stateMachines | ✅ |
 | Hotkeys (play/pause, restart) | ❌ (planned) |
 | Frontmatter global overrides | ❌ (planned) |
 | Asset loader (hosted assets) | ❌ (planned) |
@@ -35,7 +35,7 @@
 | 0.1.x renderer | Switched to @rive-app/canvas & webgl/webgl2, artboard/stateMachine/animation & renderer selection |
 
 ## Mini Roadmap (Next Implementation Order)
-1. Multiple animations / stateMachines per block (comma-separated lists)
+1. (Done) Multiple animations / stateMachines per block (comma-separated lists)
 2. Hotkeys: global play/pause toggle & restart last animation
 3. Frontmatter defaults (vault/note-level: autoplay, loop, renderer)
 4. Aspect ratio & intrinsic size detection (auto height, crisp scaling)
@@ -73,6 +73,8 @@ Embed a Rive animation by adding a fenced code block in a note:
 src: path/to/animation.riv
 autoplay: true
 loop: true
+animations: Idle, Bounce, Spin
+stateMachines: Interaction, HoverMachine
 ```
 ````
 
@@ -91,6 +93,8 @@ Notes:
   - `src: /absolute/from/vaultRoot.riv` (leading slash) forces vault root.
   - Backslashes are normalized.
 - Artboard / stateMachine / animation selection supported via block keys.
+  - Multiple animations: `animations: Idle, Spin` (or multiple `animation:` keys)
+  - Multiple state machines: `stateMachines: Main, Hover` (or multiple `stateMachine:` keys)
 - Basic error messages surface if the file is missing.
 
 ### Fast Deploy to Your Vault (Windows)
