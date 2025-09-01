@@ -41,7 +41,11 @@ Settings (under plugin settings):
 - Default loop
 
 Notes:
-- Path is relative to the vault root currently (no path resolution helpers yet).
+- Paths now support relative resolution:
+  - `src: ./file.riv` resolves relative to the folder of the note.
+  - `src: sub/folder/file.riv` (no leading slash) also treated as relative to the note; if missing it will naturally still look like a vault path when resolved.
+  - `src: /absolute/from/vaultRoot.riv` (leading slash) forces vault root.
+  - Backslashes are normalized.
 - State machines / artboards not yet configurable.
 - Basic error messages surface if the file is missing.
 
