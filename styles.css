@@ -6,3 +6,46 @@ available in the app when your plugin is enabled.
 If your plugin does not need CSS, delete this file.
 
 */
+
+.rive-block-container {
+	position: relative;
+	display: inline-flex;
+	flex-direction: column;
+	gap: 4px;
+	border: 1px solid var(--background-modifier-border);
+	padding: 8px;
+	border-radius: 6px;
+	background: var(--background-secondary);
+	max-width: 100%;
+}
+
+canvas.rive-canvas {
+	width: 400px;
+	height: auto;
+	max-width: 100%;
+	aspect-ratio: 1 / 1; /* fallback until intrinsic size known */
+	background: #111;
+	border-radius: 4px;
+}
+
+.rive-controls {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 6px;
+	font-size: 12px;
+}
+
+.rive-controls button {
+	cursor: pointer;
+	padding: 2px 8px;
+	border: 1px solid var(--background-modifier-border);
+	background: var(--interactive-accent-hover);
+	color: var(--text-on-accent);
+	border-radius: 4px;
+	font-size: 12px;
+}
+
+.rive-controls button:hover { filter: brightness(1.1); }
+
+.rive-error { color: var(--text-error); font-size: 12px; }

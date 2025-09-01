@@ -1,149 +1,29 @@
-import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import { App, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
 import { getRive } from './rive-loader';
 
-// Remember to rename these classes and interfaces!
-
-interface MyPluginSettings {
-	mySetting: string;
-}
-
-const DEFAULT_SETTINGS: MyPluginSettings = {
-	mySetting: 'default'
-}
+interface MyPluginSettings { mySetting: string; defaultAutoplay: boolean; defaultLoop: boolean; }
+const DEFAULT_SETTINGS: MyPluginSettings = { mySetting: 'default', defaultAutoplay: true, defaultLoop: true };
+interface RiveRenderedInstance { restart: () => void; pause: () => void; play: () => void; }
 
 export default class MyPlugin extends Plugin {
-	settings: MyPluginSettings;
-
+	settings: MyPluginSettings; private lastInstance: RiveRenderedInstance | null = null;
 	async onload() {
 		await this.loadSettings();
-
-		// This creates an icon in the left ribbon.
-		const ribbonIconEl = this.addRibbonIcon('dice', 'Sample Plugin', (evt: MouseEvent) => {
-			// Called when the user clicks the icon.
-			new Notice('This is a notice!');
-		});
-		// Perform additional things with the ribbon
-		ribbonIconEl.addClass('my-plugin-ribbon-class');
-
-		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
-		const statusBarItemEl = this.addStatusBarItem();
-		statusBarItemEl.setText('Status Bar Text');
-
-		// This adds a simple command that can be triggered anywhere
-		this.addCommand({
-			id: 'open-sample-modal-simple',
-			name: 'Open sample modal (simple)',
-			callback: () => {
-				new SampleModal(this.app).open();
-			}
-		});
-		// This adds an editor command that can perform some operation on the current editor instance
-		this.addCommand({
-			id: 'sample-editor-command',
-			name: 'Sample editor command',
-			editorCallback: (editor: Editor, view: MarkdownView) => {
-				console.log(editor.getSelection());
-				editor.replaceSelection('Sample Editor Command');
-			}
-		});
-		// This adds a complex command that can check whether the current state of the app allows execution of the command
-		this.addCommand({
-			id: 'open-sample-modal-complex',
-			name: 'Open sample modal (complex)',
-			checkCallback: (checking: boolean) => {
-				// Conditions to check
-				const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-				if (markdownView) {
-					// If checking is true, we're simply "checking" if the command can be run.
-					// If checking is false, then we want to actually perform the operation.
-					if (!checking) {
-						new SampleModal(this.app).open();
-					}
-
-					// This command will only show up in Command Palette when the check function returns true
-					return true;
-				}
-			}
-		});
-		this.addCommand({
-			id: 'rive-test-load',
-			name: 'Rive: Test runtime load',
-			callback: async () => {
-				try {
-					const rive = await getRive();
-					new Notice('Rive runtime loaded. Version unknown');
-					console.log('Rive module', rive);
-				} catch (e) {
-					console.error(e);
-					new Notice('Failed to load Rive runtime');
-				}
-			}
-		});
-
-		// This adds a settings tab so the user can configure various aspects of the plugin
+		const ribbon = this.addRibbonIcon('dice', 'Rive Plugin', () => new Notice('Rive plugin active')); ribbon.addClass('rive-plugin-ribbon');
+		const status = this.addStatusBarItem(); status.setText('Rive WIP');
+		this.addCommand({ id: 'rive-test-load', name: 'Rive: Test runtime load', callback: async () => { try { const rive = await getRive(); new Notice('Rive runtime loaded'); console.log('Rive module', rive); } catch (e) { console.error(e); new Notice('Failed to load Rive runtime'); } } });
+		this.addCommand({ id: 'rive-restart-last', name: 'Rive: Restart last animation', callback: () => { if (this.lastInstance) { this.lastInstance.restart(); new Notice('Rive animation restarted'); } else new Notice('No Rive animation active'); } });
+		this.registerMarkdownCodeBlockProcessor('rive', async (source, el) => { const cfg = parseRiveBlockConfig(source, this.settings); el.addClass('rive-block'); const container = el.createDiv({ cls: 'rive-block-container' }); const canvas = container.createEl('canvas', { cls: 'rive-canvas' }); const controls = container.createDiv({ cls: 'rive-controls' }); const playBtn = controls.createEl('button', { text: 'Pause' }); const restartBtn = controls.createEl('button', { text: 'Restart' }); controls.createSpan({ text: cfg.src ? ` ${cfg.src}` : '' }); if (!cfg.src) { container.createDiv({ cls: 'rive-error', text: 'Missing src (src: path/to/file.riv)' }); return; } try { const arrayBuffer = await this.app.vault.adapter.readBinary(cfg.src); const riveMod: any = await getRive(); const RiveCtor: any = (riveMod && riveMod.Rive) || riveMod.default || riveMod; let instance: any; let isPaused = false; instance = new RiveCtor({ canvas, buffer: arrayBuffer, autoplay: cfg.autoplay, loop: cfg.loop ? riveMod.Loop?.Loop : undefined, onLoad: () => { console.log('Rive loaded', cfg.src); } }); const api: RiveRenderedInstance = { restart: () => { try { instance?.reset && instance.reset(); } catch {} instance?.play && instance.play(); isPaused = false; playBtn.textContent = 'Pause'; }, pause: () => { instance?.pause && instance.pause(); isPaused = true; playBtn.textContent = 'Play'; }, play: () => { instance?.play && instance.play(); isPaused = false; playBtn.textContent = 'Pause'; } }; this.lastInstance = api; playBtn.onclick = () => { isPaused ? api.play() : api.pause(); }; restartBtn.onclick = () => api.restart(); } catch (e) { console.error('Failed to render Rive', e); container.createDiv({ cls: 'rive-error', text: 'Failed to load Rive file'}); } });
 		this.addSettingTab(new SampleSettingTab(this.app, this));
-
-		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
-		// Using this function will automatically remove the event listener when this plugin is disabled.
-		this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
-			console.log('click', evt);
-		});
-
-		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
+		this.registerDomEvent(document, 'click', () => {});
+		this.registerInterval(window.setInterval(() => console.log('Rive plugin heartbeat'), 5 * 60 * 1000));
 	}
-
-	onunload() {
-
-	}
-
-	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
-	}
-
-	async saveSettings() {
-		await this.saveData(this.settings);
-	}
+	onunload() { this.lastInstance = null; }
+	async loadSettings() { this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData()); }
+	async saveSettings() { await this.saveData(this.settings); }
 }
 
-class SampleModal extends Modal {
-	constructor(app: App) {
-		super(app);
-	}
+function parseRiveBlockConfig(source: string, settings: MyPluginSettings): { src: string; autoplay: boolean; loop: boolean; } { const lines = source.split(/\r?\n/).map(l => l.trim()).filter(Boolean); const cfg: any = { autoplay: settings.defaultAutoplay, loop: settings.defaultLoop }; for (const line of lines) { const m = line.match(/^(\w+)\s*[:=]\s*(.+)$/); if (m) { const key = m[1]; let val: any = m[2]; if (val === 'true') val = true; else if (val === 'false') val = false; cfg[key] = val; } else if (!cfg.src && line.endsWith('.riv')) { cfg.src = line; } } return { src: cfg.src || '', autoplay: !!cfg.autoplay, loop: !!cfg.loop }; }
 
-	onOpen() {
-		const {contentEl} = this;
-		contentEl.setText('Woah!');
-	}
-
-	onClose() {
-		const {contentEl} = this;
-		contentEl.empty();
-	}
-}
-
-class SampleSettingTab extends PluginSettingTab {
-	plugin: MyPlugin;
-
-	constructor(app: App, plugin: MyPlugin) {
-		super(app, plugin);
-		this.plugin = plugin;
-	}
-
-	display(): void {
-		const {containerEl} = this;
-
-		containerEl.empty();
-
-		new Setting(containerEl)
-			.setName('Setting #1')
-			.setDesc('It\'s a secret')
-			.addText(text => text
-				.setPlaceholder('Enter your secret')
-				.setValue(this.plugin.settings.mySetting)
-				.onChange(async (value) => {
-					this.plugin.settings.mySetting = value;
-					await this.plugin.saveSettings();
-				}));
-	}
-}
+class SampleModal extends Modal { onOpen() { this.contentEl.setText('Woah!'); } onClose() { this.contentEl.empty(); } }
+class SampleSettingTab extends PluginSettingTab { plugin: MyPlugin; constructor(app: App, plugin: MyPlugin) { super(app, plugin); this.plugin = plugin; } display(): void { const { containerEl } = this; containerEl.empty(); new Setting(containerEl).setName('Default autoplay').setDesc('Autoplay animations when rendered').addToggle(t => t.setValue(this.plugin.settings.defaultAutoplay).onChange(async v => { this.plugin.settings.defaultAutoplay = v; await this.plugin.saveSettings(); })); new Setting(containerEl).setName('Default loop').setDesc('Loop animations by default').addToggle(t => t.setValue(this.plugin.settings.defaultLoop).onChange(async v => { this.plugin.settings.defaultLoop = v; await this.plugin.saveSettings(); })); }}

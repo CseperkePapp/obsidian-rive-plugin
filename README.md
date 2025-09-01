@@ -20,6 +20,33 @@ Feel free to open issues or suggestions while this is in flux.
 
 ---
 
+## Usage (Early Prototype)
+
+Embed a Rive animation by adding a fenced code block in a note:
+
+````
+```rive
+src: path/to/animation.riv
+autoplay: true
+loop: true
+```
+````
+
+Buttons (Pause / Restart) appear under the canvas. The command palette provides:
+- Rive: Test runtime load (debug)
+- Rive: Restart last animation
+
+Settings (under plugin settings):
+- Default autoplay
+- Default loop
+
+Notes:
+- Path is relative to the vault root currently (no path resolution helpers yet).
+- State machines / artboards not yet configurable.
+- Basic error messages surface if the file is missing.
+
+---
+
 Original sample plugin README content preserved below for reference while scaffolding is retained:
 
 ---
