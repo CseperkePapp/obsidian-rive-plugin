@@ -13,7 +13,73 @@ export default class MyPlugin extends Plugin {
 		const status = this.addStatusBarItem(); status.setText('Rive WIP');
 		this.addCommand({ id: 'rive-test-load', name: 'Rive: Test runtime load', callback: async () => { try { const rive = await getRive(); new Notice('Rive runtime loaded'); console.log('Rive module', rive); } catch (e) { console.error(e); new Notice('Failed to load Rive runtime'); } } });
 		this.addCommand({ id: 'rive-restart-last', name: 'Rive: Restart last animation', callback: () => { if (this.lastInstance) { this.lastInstance.restart(); new Notice('Rive animation restarted'); } else new Notice('No Rive animation active'); } });
-		this.registerMarkdownCodeBlockProcessor('rive', async (source, el) => { const cfg = parseRiveBlockConfig(source, this.settings); el.addClass('rive-block'); const container = el.createDiv({ cls: 'rive-block-container' }); const canvas = container.createEl('canvas', { cls: 'rive-canvas' }); const controls = container.createDiv({ cls: 'rive-controls' }); const playBtn = controls.createEl('button', { text: 'Pause' }); const restartBtn = controls.createEl('button', { text: 'Restart' }); controls.createSpan({ text: cfg.src ? ` ${cfg.src}` : '' }); if (!cfg.src) { container.createDiv({ cls: 'rive-error', text: 'Missing src (src: path/to/file.riv)' }); return; } try { const arrayBuffer = await this.app.vault.adapter.readBinary(cfg.src); const riveMod: any = await getRive(); const RiveCtor: any = (riveMod && riveMod.Rive) || riveMod.default || riveMod; let instance: any; let isPaused = false; instance = new RiveCtor({ canvas, buffer: arrayBuffer, autoplay: cfg.autoplay, loop: cfg.loop ? riveMod.Loop?.Loop : undefined, onLoad: () => { console.log('Rive loaded', cfg.src); } }); const api: RiveRenderedInstance = { restart: () => { try { instance?.reset && instance.reset(); } catch {} instance?.play && instance.play(); isPaused = false; playBtn.textContent = 'Pause'; }, pause: () => { instance?.pause && instance.pause(); isPaused = true; playBtn.textContent = 'Play'; }, play: () => { instance?.play && instance.play(); isPaused = false; playBtn.textContent = 'Pause'; } }; this.lastInstance = api; playBtn.onclick = () => { isPaused ? api.play() : api.pause(); }; restartBtn.onclick = () => api.restart(); } catch (e) { console.error('Failed to render Rive', e); container.createDiv({ cls: 'rive-error', text: 'Failed to load Rive file'}); } });
+			this.registerMarkdownCodeBlockProcessor('rive', async (source, el) => {
+				const cfg = parseRiveBlockConfig(source, this.settings);
+				el.addClass('rive-block');
+				const container = el.createDiv({ cls: 'rive-block-container' });
+				const canvas = container.createEl('canvas', { cls: 'rive-canvas' });
+				const controls = container.createDiv({ cls: 'rive-controls' });
+				const playBtn = controls.createEl('button', { text: 'Loading…' });
+				const restartBtn = controls.createEl('button', { text: 'Restart' });
+				const pathSpan = controls.createSpan({ text: cfg.src ? ` ${cfg.src}` : '' });
+				playBtn.disabled = true; restartBtn.disabled = true;
+				if (!cfg.src) { container.createDiv({ cls: 'rive-error', text: 'Missing src (src: path/to/file.riv)' }); return; }
+				try {
+					const arrayBuffer = await this.app.vault.adapter.readBinary(cfg.src);
+					const riveMod: any = await getRive();
+					const RiveCtor: any = (riveMod && (riveMod.Rive || riveMod.default)) || riveMod;
+					// Determine loop constant if available
+					let loopConst: any = undefined;
+					if (cfg.loop && riveMod.Loop) {
+						// Prefer Loop.forever then Loop.loop fallback
+						loopConst = riveMod.Loop.forever || riveMod.Loop.loop || Object.values(riveMod.Loop)[0];
+					}
+					let instance: any; let isPaused = !cfg.autoplay; let loaded = false;
+					const finalize = () => {
+						loaded = true;
+						playBtn.disabled = false; restartBtn.disabled = false;
+						playBtn.textContent = isPaused ? 'Play' : 'Pause';
+						// Attempt artboard fallback detection (API varies across versions)
+						try {
+							if (typeof instance?.artboardNames === 'function') {
+								const names = instance.artboardNames();
+								if (names && names.length && typeof instance?.artboard === 'function') {
+									// keep current default if already set; otherwise set first
+									// Some versions expose instance.artboard(name)
+									// Do nothing if default works.
+								}
+							}
+						} catch {}
+					};
+					instance = new RiveCtor({
+						canvas,
+						buffer: arrayBuffer,
+						autoplay: cfg.autoplay,
+						loop: loopConst,
+						onLoad: () => { console.log('Rive loaded', cfg.src); finalize(); }
+					});
+
+					const api: RiveRenderedInstance = {
+						restart: () => {
+							if (!loaded) return;
+							try { if (typeof instance?.reset === 'function') instance.reset(); } catch {}
+							if (typeof instance?.play === 'function') instance.play();
+							isPaused = false; playBtn.textContent = 'Pause';
+						},
+						pause: () => { if (!loaded) return; if (typeof instance?.pause === 'function') { instance.pause(); isPaused = true; playBtn.textContent = 'Play'; } },
+						play: () => { if (!loaded) return; if (typeof instance?.play === 'function') { instance.play(); isPaused = false; playBtn.textContent = 'Pause'; } }
+					};
+					this.lastInstance = api;
+					playBtn.onclick = () => { if (!loaded) return; isPaused ? api.play() : api.pause(); };
+					restartBtn.onclick = () => api.restart();
+					// Safety timeout: if onLoad never fires, show error.
+					window.setTimeout(() => { if (!loaded) { playBtn.textContent = 'Error'; const ov = container.createDiv({ cls: 'rive-overlay-error', text: 'Load timeout' }); ov.onclick = () => ov.remove(); } }, 8000);
+				} catch (e) {
+					console.error('Failed to render Rive', e);
+					container.createDiv({ cls: 'rive-error', text: 'Failed to load Rive file'});
+					playBtn.textContent = 'Error';
+				}
+			});
 		this.addSettingTab(new SampleSettingTab(this.app, this));
 		this.registerDomEvent(document, 'click', () => {});
 		this.registerInterval(window.setInterval(() => console.log('Rive plugin heartbeat'), 5 * 60 * 1000));

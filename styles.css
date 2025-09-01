@@ -49,3 +49,17 @@ canvas.rive-canvas {
 .rive-controls button:hover { filter: brightness(1.1); }
 
 .rive-error { color: var(--text-error); font-size: 12px; }
+
+.rive-overlay-error {
+	position: absolute;
+	top: 4px;
+	left: 4px;
+	background: rgba(200,50,50,0.85);
+	color: #fff;
+	padding: 2px 6px;
+	font-size: 11px;
+	border-radius: 4px;
+	cursor: pointer;
+}
+
+.rive-controls button:disabled { opacity: 0.6; cursor: not-allowed; }
