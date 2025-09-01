@@ -38,7 +38,7 @@
 1. (Done) Multiple animations / stateMachines per block (comma-separated lists)
 2. (In progress) Hotkeys: global play/pause toggle & restart last animation
 3. (Done) Frontmatter defaults (note-level: autoplay, loop, renderer)
-4. Aspect ratio & intrinsic size detection (auto height, crisp scaling)
+4. (Done) Aspect ratio & intrinsic size detection (auto height, crisp scaling)
 5. Asset loader support for hosted / referenced fonts & images
 6. Playhead scrubber + progress bar (seek + current time display)
 7. Snapshot / export current frame to PNG in vault
@@ -75,6 +75,8 @@ autoplay: true
 loop: true
 animations: Idle, Bounce, Spin
 stateMachines: Interaction, HoverMachine
+ratio: 16/9
+width: 640
 ```
 ````
 
@@ -106,6 +108,10 @@ Notes:
     ---
     ```
 - Basic error messages surface if the file is missing.
+ - Aspect sizing:
+   - `ratio:` supports fractional (`16/9`) or decimal (`1.777`)
+   - Provide `width:` to cap width (otherwise full container width)
+   - Provide `height:` to force height (otherwise derived from ratio or intrinsic file dimensions)
 
 ### Fast Deploy to Your Vault (Windows)
 

@@ -76,17 +76,29 @@ export default class MyPlugin extends Plugin {
 						loopConst = riveMod.Loop.forever || riveMod.Loop.loop || Object.values(riveMod.Loop)[0];
 					}
 					let instance: any; let isPaused = !cfg.autoplay; let loaded = false;
-					// Resize handling
-					const resizeObserver = new ResizeObserver(() => {
-						if (!canvas.isConnected) { resizeObserver.disconnect(); return; }
+					// Resize handling with aspect ratio
+					const applySize = () => {
 						const parentWidth = container.clientWidth;
-						canvas.style.width = parentWidth + 'px';
-					});
+						let targetWidth = parentWidth;
+						if (cfg.width) targetWidth = Math.min(parentWidth, cfg.width);
+						canvas.style.width = targetWidth + 'px';
+						// Determine height: explicit height > ratio > intrinsic
+						let h: number | undefined;
+						if (cfg.height) h = cfg.height;
+						else if (cfg.ratio) h = targetWidth / cfg.ratio;
+						else if (typeof (instance as any)?.bufferWidth === 'number' && typeof (instance as any)?.bufferHeight === 'number') {
+							const iw = (instance as any).bufferWidth; const ih = (instance as any).bufferHeight;
+							if (iw > 0 && ih > 0) h = targetWidth * (ih / iw);
+						}
+						if (h) canvas.style.height = Math.round(h) + 'px';
+					};
+					const resizeObserver = new ResizeObserver(() => { if (!canvas.isConnected) { resizeObserver.disconnect(); return; } applySize(); });
 					resizeObserver.observe(container);
 					const finalize = () => {
 						loaded = true;
 						playBtn.disabled = false; restartBtn.disabled = false;
 						playBtn.textContent = isPaused ? 'Play' : 'Pause';
+						applySize();
 						// Attempt artboard fallback detection (API varies across versions)
 						try {
 							if (typeof instance?.artboardNames === 'function') {
@@ -143,7 +155,7 @@ export default class MyPlugin extends Plugin {
 	async saveSettings() { await this.saveData(this.settings); }
 }
 
-function parseRiveBlockConfig(source: string, settings: MyPluginSettings): { src: string; autoplay: boolean; loop: boolean; artboard?: string; stateMachines?: string[]; renderer?: string; animations?: string[]; } {
+function parseRiveBlockConfig(source: string, settings: MyPluginSettings): { src: string; autoplay: boolean; loop: boolean; artboard?: string; stateMachines?: string[]; renderer?: string; animations?: string[]; ratio?: number; width?: number; height?: number; } {
 	const lines = source.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
 	const raw: Record<string, any> = { autoplay: settings.defaultAutoplay, loop: settings.defaultLoop };
 	for (const line of lines) {
@@ -173,6 +185,23 @@ function parseRiveBlockConfig(source: string, settings: MyPluginSettings): { src
 		... (toList(raw.stateMachine) || []),
 		... (toList(raw.stateMachines) || [])
 	];
+	// Ratio parsing: allow ratio: 16/9 or ratio: 1.777, also alias aspect
+	let ratio: number | undefined;
+	const ratioRaw = raw.ratio || raw.aspect;
+	if (ratioRaw) {
+		if (/^\d+\s*\/\s*\d+$/.test(ratioRaw)) {
+			const [a,b] = ratioRaw.split('/').map((n:string)=> parseFloat(n));
+			if (b && b !== 0) ratio = a / b;
+		} else {
+			const parsed = parseFloat(String(ratioRaw));
+			if (!isNaN(parsed) && isFinite(parsed) && parsed > 0) ratio = parsed;
+		}
+	}
+	const width = raw.width !== undefined ? parseFloat(String(raw.width)) : undefined;
+	const height = raw.height !== undefined ? parseFloat(String(raw.height)) : undefined;
+	if (!ratio && width && height) {
+		if (height !== 0) ratio = width / height;
+	}
 	return {
 		src: raw.src || '',
 		autoplay: !!raw.autoplay,
@@ -180,7 +209,10 @@ function parseRiveBlockConfig(source: string, settings: MyPluginSettings): { src
 		artboard: raw.artboard,
 		renderer: raw.renderer,
 		animations: anims.length ? Array.from(new Set(anims)) : undefined,
-		stateMachines: stateMs.length ? Array.from(new Set(stateMs)) : undefined
+		stateMachines: stateMs.length ? Array.from(new Set(stateMs)) : undefined,
+		ratio,
+		width: width && isFinite(width) && width > 0 ? width : undefined,
+		height: height && isFinite(height) && height > 0 ? height : undefined
 	};
 }
 
