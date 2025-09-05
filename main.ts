@@ -5,6 +5,8 @@ interface MyPluginSettings { mySetting: string; defaultAutoplay: boolean; defaul
 const DEFAULT_SETTINGS: MyPluginSettings = { mySetting: 'default', defaultAutoplay: true, defaultLoop: true, defaultRenderer: 'canvas', enableHotkeys: true, defaultFit: 'contain', defaultAlignment: 'center' };
 interface RiveRenderedInstance { restart: () => void; pause: () => void; play: () => void; toggle: () => void; isPaused: () => boolean; stopRendering?: () => void; startRendering?: () => void; element: HTMLCanvasElement; dispose: () => void; }
 const activeRiveInstances: Set<RiveRenderedInstance> = new Set();
+// Injected at build time via esbuild define
+const PLUGIN_VERSION = (process as any)?.env?.PLUGIN_VERSION || 'dev';
 const riveBufferCache: Map<string, ArrayBuffer> = new Map();
 
 // Runtime version consistency check (best-effort; ignored if packages unavailable)
@@ -39,8 +41,9 @@ export default class MyPlugin extends Plugin {
 		await this.loadSettings();
 		checkRiveVersionsOnce();
 		const ribbon = this.addRibbonIcon('dice', 'Rive Plugin', () => new Notice('Rive plugin active')); ribbon.addClass('rive-plugin-ribbon');
-		const status = this.addStatusBarItem(); status.setText('Rive WIP');
-		this.addCommand({ id: 'rive-test-load', name: 'Rive: Test runtime load', callback: async () => { try { const rive = await getRive(); new Notice('Rive runtime loaded'); console.log('Rive module', rive); } catch (e) { console.error(e); new Notice('Failed to load Rive runtime'); } } });
+		const status = this.addStatusBarItem(); status.setText('Rive '+PLUGIN_VERSION);
+		this.addCommand({ id: 'rive-test-load', name: 'Rive: Test runtime load', callback: async () => { try { const rive = await getRive(); new Notice('Rive runtime loaded ('+PLUGIN_VERSION+')'); console.log('Rive module', rive); } catch (e) { console.error(e); new Notice('Failed to load Rive runtime'); } } });
+		this.addCommand({ id: 'rive-show-version', name: 'Rive: Show plugin version', callback: () => { new Notice('Rive plugin version '+PLUGIN_VERSION); console.log('[Rive] Plugin version', PLUGIN_VERSION); } });
 		this.addCommand({ id: 'rive-restart-last', name: 'Rive: Restart last animation', callback: () => { if (this.lastInstance) { this.lastInstance.restart(); new Notice('Rive animation restarted'); } else new Notice('No Rive animation active'); } });
 		this.addCommand({ id: 'rive-toggle-last', name: 'Rive: Toggle play/pause last animation', callback: () => { if (this.lastInstance) { this.lastInstance.toggle(); new Notice(this.lastInstance.isPaused() ? 'Rive paused' : 'Rive playing'); } else new Notice('No Rive animation active'); } });
 
@@ -99,6 +102,22 @@ export default class MyPlugin extends Plugin {
 				}
 				if (!cfg.src) { container.createDiv({ cls: 'rive-error', text: 'Missing src (src: path/to/file.riv)' }); return; }
 				try {
+					// helper to show overlay with optional detail
+					const showOverlay = (message: string, detail?: any, kind: string = 'error') => {
+						const cls = kind === 'warn' ? 'rive-overlay-warn' : 'rive-overlay-error';
+						const ov = container.createDiv({ cls, text: message });
+						if (detail) {
+							ov.addClass('clickable');
+							ov.onclick = () => {
+								const pretty = typeof detail === 'string' ? detail : JSON.stringify(detail, null, 2);
+								navigator.clipboard?.writeText(pretty).catch(()=>{});
+								new Notice('Rive diagnostics copied to clipboard (see console)');
+								console.debug('[Rive] Overlay detail', detail);
+								ov.detach();
+							};
+						}
+						return ov;
+					};
 						const resolvedPath = resolveRivePath(cfg.src, ctx?.sourcePath, this.app);
 						if (resolvedPath !== cfg.src) {
 							if (pathSpan) pathSpan.textContent = ' ' + resolvedPath; // show resolved path
@@ -117,7 +136,7 @@ export default class MyPlugin extends Plugin {
 							riveBufferCache.set(resolvedPath, arrayBuffer);
 						}
 					const rendererChoice = (cfg.renderer === 'webgl' || cfg.renderer === 'webgl2' || cfg.renderer === 'canvas') ? cfg.renderer : (mergedDefaults.defaultRenderer || 'canvas');
-					const riveMod: any = await getRive(rendererChoice as 'canvas'|'webgl'|'webgl2');
+					let riveMod: any = await getRive(rendererChoice as 'canvas'|'webgl'|'webgl2');
 					const RiveCtor: any = (riveMod && (riveMod.Rive || riveMod.default)) || riveMod;
 					// Determine loop constant if available
 					let loopConst: any = undefined;
@@ -255,7 +274,57 @@ export default class MyPlugin extends Plugin {
 							loadAsset: async (asset: any) => assetLoader.load(asset)
 						};
 					}
-					const ctorParams: any = {
+					const attemptedRenderers: string[] = [];
+					const attemptedStrategies: string[] = [];
+					// placeholder; actual assignment comes after ctorParamsBase declared
+					let ctorParamsBase: any;
+					const handleLoadError = async (err: any, failedRenderer: string) => {
+						console.error('[Rive] onLoadError', failedRenderer, err);
+						attemptedRenderers.push(failedRenderer);
+						// Strategy fallback #1: if buffer method failed, try object URL via src (once)
+						if (!attemptedStrategies.includes('objectUrl')) {
+							attemptedStrategies.push('objectUrl');
+							try {
+								const blob = new Blob([arrayBuffer]);
+								const objUrl = URL.createObjectURL(blob);
+								showOverlay('Retrying via blob URL…', { renderer: failedRenderer }, 'warn');
+								instance = new RiveCtor({
+									...ctorParamsBase,
+									src: objUrl,
+									buffer: undefined,
+									onLoad: () => { console.log('[Rive] Loaded via blob URL fallback'); finalize(); URL.revokeObjectURL(objUrl); },
+									onLoadError: (eB: any) => { console.error('[Rive] Blob URL fallback failed', eB); handleLoadError(eB, failedRenderer); }
+								});
+								return; // wait for this attempt to resolve
+							} catch (blobErr) {
+								console.warn('[Rive] Blob URL strategy threw', blobErr);
+							}
+						}
+						// Try canvas fallback once if not already tried
+						if (failedRenderer !== 'canvas' && !attemptedRenderers.includes('canvas')) {
+							showOverlay('Retrying with canvas…', { failedRenderer, err: String(err) }, 'warn');
+							try {
+								riveMod = await getRive('canvas');
+								const RCtor: any = (riveMod && (riveMod.Rive || riveMod.default)) || riveMod;
+								instance = new RCtor({
+									...ctorParamsBase,
+									onLoad: () => { console.log('[Rive] Fallback canvas loaded'); finalize(); },
+									onLoadError: (e2: any) => {
+										console.error('[Rive] Canvas fallback failed', e2);
+										showOverlay('Rive load error (canvas fallback)', { path: resolvedPath, rendererTried: [rendererChoice, 'canvas'], error: String(e2) });
+										if (playBtn) { playBtn.textContent = 'Error'; playBtn.disabled = true; }
+									}
+								});
+								return;
+							} catch (e3) {
+								console.error('[Rive] Fallback attempt threw', e3);
+							}
+						}
+						showOverlay('Rive load error', { path: resolvedPath, renderer: failedRenderer, error: String(err) });
+						if (playBtn) { playBtn.textContent = 'Error'; playBtn.disabled = true; }
+					};
+
+					ctorParamsBase = {
 						canvas,
 						buffer: arrayBuffer,
 						autoplay: cfg.autoplay,
@@ -263,20 +332,14 @@ export default class MyPlugin extends Plugin {
 						layout,
 						assetLoader,
 						onLoad: () => { console.log('Rive loaded', cfg.src, cfg.artboard || '', cfg.renderer || ''); instance?.resizeDrawingSurfaceToCanvas?.(); finalize(); },
-						onLoadError: (err: any) => {
-							console.error('[Rive] onLoadError', err);
-							if (playBtn) { playBtn.textContent = 'Error'; playBtn.disabled = true; }
-							const ov = container.createDiv({ cls: 'rive-overlay-error', text: 'Load error' });
-							ov.onclick = () => {
-								new Notice('Rive load error – see console');
-								ov.detach();
-							};
-						}
+						onLoadError: (err: any) => { handleLoadError(err, rendererChoice); }
 					};
-					if (cfg.artboard) ctorParams.artboard = cfg.artboard;
-					if (cfg.stateMachines && cfg.stateMachines.length) ctorParams.stateMachines = cfg.stateMachines.length === 1 ? cfg.stateMachines[0] : cfg.stateMachines;
-					if (cfg.animations && cfg.animations.length) ctorParams.animations = cfg.animations.length === 1 ? cfg.animations[0] : cfg.animations;
-					instance = new RiveCtor(ctorParams);
+					if (cfg.artboard) ctorParamsBase.artboard = cfg.artboard;
+					if (cfg.stateMachines && cfg.stateMachines.length) ctorParamsBase.stateMachines = cfg.stateMachines.length === 1 ? cfg.stateMachines[0] : cfg.stateMachines;
+					if (cfg.animations && cfg.animations.length) ctorParamsBase.animations = cfg.animations.length === 1 ? cfg.animations[0] : cfg.animations;
+
+					// initial attempt
+					instance = new RiveCtor(ctorParamsBase);
 
 					const api: RiveRenderedInstance = {
 						restart: () => {
@@ -307,8 +370,26 @@ export default class MyPlugin extends Plugin {
 					}
 					if (playBtn) playBtn.onclick = () => { if (!loaded) return; isPaused ? api.play() : api.pause(); };
 					if (restartBtn) restartBtn.onclick = () => api.restart();
-					// Safety timeout: if onLoad never fires, show error.
-					window.setTimeout(() => { if (!loaded) { if (playBtn) playBtn.textContent = 'Error'; const ov = container.createDiv({ cls: 'rive-overlay-error', text: 'Load timeout' }); ov.onclick = () => ov.remove(); console.warn('[Rive] Load timeout', { path: resolvedPath }); } }, 8000);
+					// Safety timeout: if onLoad never fires, show diagnostics & possible fallback
+					window.setTimeout(async () => {
+						if (!loaded) {
+							console.warn('[Rive] Load timeout', { path: resolvedPath, rendererChoice, cfg });
+							if (playBtn) playBtn.textContent = 'Error';
+							showOverlay('Rive load timeout', { path: resolvedPath, rendererChoice, cfg });
+							// try canvas fallback if not yet and original choice not canvas
+							if (rendererChoice !== 'canvas' && attemptedRenderers.indexOf('canvas') === -1) {
+								attemptedRenderers.push(rendererChoice);
+								try {
+									showOverlay('Timeout – trying canvas fallback…', { original: rendererChoice }, 'warn');
+									riveMod = await getRive('canvas');
+									const RCtor: any = (riveMod && (riveMod.Rive || riveMod.default)) || riveMod;
+									instance = new RCtor({ ...ctorParamsBase, onLoad: () => { console.log('[Rive] Loaded after timeout with canvas fallback'); finalize(); }, onLoadError: (e4: any) => { console.error('[Rive] Canvas fallback after timeout failed', e4); showOverlay('Rive load error (post-timeout)', { error: String(e4) }); } });
+								} catch (e5) {
+									console.error('[Rive] Canvas fallback throw (timeout)', e5);
+								}
+							}
+						}
+					}, 8000);
 				} catch (e) {
 					console.error('Failed to render Rive', e);
 					container.createDiv({ cls: 'rive-error', text: 'Failed to load Rive file'});
