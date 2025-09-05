@@ -3,9 +3,15 @@ import path from 'path';
 
 function incPatch(v){
   const parts = v.split('.').map(Number);
-  if (parts.length !== 3 || parts.some(isNaN)) return v + '.1';
-  parts[2] += 1;
-  return parts.join('.');
+  if (parts.some(isNaN)) return v + '.1';
+  if (parts.length === 2) { // two-part version like 1.11
+    parts[1] += 1; return parts.join('.');
+  }
+  if (parts.length === 3) {
+    // If middle already > 9 and patch is 0, allow collapsing to two-part scheme on next manual edit; else normal patch bump
+    parts[2] += 1; return parts.join('.');
+  }
+  return v + '.1';
 }
 
 const pkgPath = path.resolve('package.json');
