@@ -1,12 +1,13 @@
 {
 	"name": "obsidian-rive-plugin",
-	"version": "0.1.2",
+	"version": "0.1.3",
 	"description": "WIP: Embed and control Rive (.riv) animations inside Obsidian notes",
 	"main": "main.js",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
-		"build": "node auto-version.mjs && git add package.json manifest.json versions.json && tsc -noEmit -skipLibCheck && node esbuild.config.mjs production && git commit -m 'chore: auto version bump' || echo no-change",
+		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
 		"version": "node version-bump.mjs && git add manifest.json versions.json",
+		"bump:patch": "node auto-version.mjs && git add package.json manifest.json versions.json && git commit -m 'chore: auto patch bump' || echo no-change",
 		"deploy": "npm run build && powershell -ExecutionPolicy Bypass -File ./deploy.ps1 -Build"
 	},
 	"keywords": [],
