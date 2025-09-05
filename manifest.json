@@ -1,7 +1,7 @@
 {
 	"id": "obsidian-rive-plugin",
 	"name": "Rive Animations (WIP)",
-	"version": "0.1.3",
+	"version": "0.1.31",
 	"minAppVersion": "0.15.0",
 	"description": "Embed and control Rive (.riv) animations inside Obsidian notes (Work in Progress).",
 	"author": "CseperkePapp",
