@@ -133,6 +133,8 @@ The build script will auto-detect this file if env vars are not set.
 
 Released under the MIT License. See the `LICENSE` file for full text.
 
+Attribution: Includes portions of the Obsidian sample plugin © 2020–2025 Dynalist Inc., used under the MIT License.
+
 ---
 
 Original sample plugin README content preserved below for reference while scaffolding is retained:
