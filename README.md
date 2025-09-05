@@ -166,6 +166,12 @@ The build script will auto-detect this file if env vars are not set.
 
 ---
 
+## License
+
+Released under the MIT License. See `LICENSE` for details.
+
+---
+
 Original sample plugin README content preserved below for reference while scaffolding is retained:
 
 ---
