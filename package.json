@@ -8,7 +8,8 @@
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
 		"version": "node version-bump.mjs && git add manifest.json versions.json",
 		"bump:patch": "node auto-version.mjs && git add package.json manifest.json versions.json && git commit -m 'chore: auto patch bump' || echo no-change",
-		"deploy": "npm run build && powershell -ExecutionPolicy Bypass -File ./deploy.ps1 -Build"
+		"deploy": "npm run build && powershell -ExecutionPolicy Bypass -File ./deploy.ps1 -Build",
+		"push:version": "npm run bump:patch && git push"
 	},
 	"keywords": [],
 	"author": "CseperkePapp",
