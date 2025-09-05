@@ -6,25 +6,29 @@
 | Area | Implemented |
 |------|-------------|
 | Fenced ```rive code block rendering | ✅ |
-| Relative and vault-root path resolution | ✅ |
+| Relative & vault-root path resolution | ✅ |
 | Autoplay / loop defaults & per-block override | ✅ |
 | Pause / Restart controls | ✅ |
-| Command: Restart last animation | ✅ |
+| Command palette (restart / toggle) | ✅ |
 | Lazy runtime loading | ✅ |
 | Runtime upgrade to @rive-app v2 (canvas/webgl/webgl2) | ✅ |
-| Select artboard, stateMachine, animation | ✅ (single each) |
+| Select artboard, stateMachine, animation (single) | ✅ |
+| Multiple animations/stateMachines lists | ✅ |
+| Animation play buttons (per animation) | ✅ |
+| State machine input discovery & trigger buttons | ✅ |
 | Renderer selection per block (canvas / webgl / webgl2) | ✅ |
 | Buffer cache (avoid re-read of same .riv) | ✅ |
 | Auto-resize to container width | ✅ |
-| Error handling (missing file, timeout) | ✅ (basic) |
+| Aspect ratio & intrinsic sizing | ✅ |
+| Error handling (missing file, timeout) | ✅ (basic overlay) |
+| Diagnostics (version check, load error overlay) | ✅ |
 | Auto deploy on build/watch (env or dev.local.json) | ✅ |
-| Multiple animations/stateMachines | ✅ |
 | Hotkeys (play/pause, restart) | ✅ |
 | Frontmatter global overrides | ✅ |
-| Asset loader (hosted assets) | ✅ |
+| Asset loader (vault/note/remote base) | ✅ |
+| Performance: pause offscreen (visibility + intersection) | ✅ |
 | Playhead scrubber / progress bar | ❌ (planned) |
 | Snapshot / export frame | ❌ (planned) |
-| Performance: pause offscreen | ✅ |
 
 ## Quick Changelog (WIP)
 | Version (dev) | Highlights |
@@ -58,6 +62,34 @@ Short-term TODO (initial milestones):
 5. Persist simple per-animation settings (loop, autoplay).
 
 Feel free to open issues or suggestions while this is in flux.
+
+---
+
+## Status & Next Steps (2025-09-05)
+
+Mirrors `docs/STATUS.md` so it's visible on GitHub without drilling into /docs.
+
+Additional diagnostics & infra:
+- Version consistency check across installed Rive runtimes.
+- Load diagnostics (onLoadError overlay + timeout/config debug logging).
+- Performance pause via both page visibility and IntersectionObserver.
+
+Known issues / observations:
+- Newly exported `.riv` files may time out (likely runtime version mismatch with newer file format).
+- Unknown animation / stateMachine names are silently ignored (no user feedback yet).
+- Error overlay sparse (no detailed message text yet).
+- No dynamic command palette entries for individual state machine inputs.
+
+Immediate next actions (proposed):
+1. Add runtime version bump script (`npm run update-rive`) + build fail if versions drift.
+2. Show truncated error text with expand option in overlay.
+3. Validation summary: list unknown animations/stateMachines (or grey their buttons) post-load.
+4. Dynamic commands for last instance's state machine inputs.
+5. Optional automatic canvas fallback if webgl/webgl2 creation fails.
+
+Longer-term ideas: frontmatter input bindings, snapshot/export revisit, parsed file caching, simple performance metrics panel.
+
+Keep this section and `docs/STATUS.md` updated at session start/end (helps future context / ADHD safety net).
 
 ---
 
