@@ -129,12 +129,68 @@ export default class MyPlugin extends Plugin {
 							if (typeof instance?.artboardNames === 'function') {
 								const names = instance.artboardNames();
 								if (names && names.length && typeof instance?.artboard === 'function') {
-									// keep current default if already set; otherwise set first
-									// Some versions expose instance.artboard(name)
-									// Do nothing if default works.
+									// potential artboard inspection point
 								}
 							}
 						} catch {}
+						// State machine input discovery + buttons
+						try {
+							if (cfg.stateMachines && cfg.stateMachines.length && controls) {
+								// Avoid clutter: create a sub-group
+                                const smGroup = controls.createDiv({ cls: 'rive-sm-inputs' });
+                                smGroup.createSpan({ text: 'Inputs:' });
+                                const addInputBtn = (label: string, onClick: () => void) => {
+                                    const b = smGroup.createEl('button', { text: label });
+                                    b.onclick = onClick;
+                                };
+                                // Rive runtime exposes instance.stateMachineInputs(name) in new API; fallback heuristics otherwise.
+                                const collected: any[] = [];
+                                for (const sm of cfg.stateMachines) {
+                                    let inputs: any[] | null = null;
+                                    try {
+                                        if (typeof instance?.stateMachineInputs === 'function') inputs = instance.stateMachineInputs(sm) || [];
+                                    } catch {}
+                                    if (!inputs || !inputs.length) continue;
+                                    inputs.forEach(inp => collected.push({ sm, inp }));
+                                }
+                                collected.forEach(({ sm, inp }) => {
+                                    const type = inp?.type || inp?.__proto__?.constructor?.name || 'input';
+                                    const n = inp?.name || inp?.id || 'input';
+                                    if (typeof inp?.fire === 'function') {
+                                        addInputBtn(n, () => { try { inp.fire(); } catch {} });
+                                    } else if (typeof inp?.value === 'boolean') {
+                                        addInputBtn(n, () => { try { inp.value = !inp.value; } catch {} });
+                                    } else if (typeof inp?.value === 'number') {
+                                        addInputBtn(n + '+', () => { try { inp.value = (inp.value || 0) + 1; } catch {} });
+                                    } else {
+                                        addInputBtn(n, () => {});
+                                    }
+                                });
+                                if (!collected.length) {
+                                    smGroup.createSpan({ text: ' (none)' });
+                                }
+                            }
+                        } catch (e) { console.warn('Rive state machine input inspection failed', e); }
+                        // Animation test buttons (one per configured animation)
+                        try {
+                            if (cfg.animations && cfg.animations.length && controls) {
+                                const animGroup = controls.createDiv({ cls: 'rive-anim-buttons' });
+                                animGroup.createSpan({ text: 'Anims:' });
+                                const uniqueAnims = Array.from(new Set(cfg.animations));
+                                uniqueAnims.forEach(animName => {
+                                    const b = animGroup.createEl('button', { text: animName });
+                                    b.onclick = () => {
+                                        try {
+                                            if (typeof instance?.play === 'function') {
+                                                instance.play(animName);
+                                                isPaused = false;
+                                                if (playBtn) playBtn.textContent = 'Pause';
+                                            }
+                                        } catch (err) { console.warn('Failed to play animation', animName, err); }
+                                    };
+                                });
+                            }
+                        } catch (e) { console.warn('Rive animation button setup failed', e); }
 					};
 					// Fit / Alignment mapping to runtime enums if available
 					const fitKey = (cfg.fit || mergedDefaults.defaultFit || 'contain').toLowerCase();

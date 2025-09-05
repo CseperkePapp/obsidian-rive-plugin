@@ -71,3 +71,14 @@ canvas.rive-canvas {
 }
 
 .rive-controls button:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* Groupings for inputs & animations */
+.rive-sm-inputs, .rive-anim-buttons {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px;
+}
+.rive-sm-inputs > span:first-child, .rive-anim-buttons > span:first-child {
+	font-weight: 600;
+}
