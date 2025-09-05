@@ -7,10 +7,37 @@ interface RiveRenderedInstance { restart: () => void; pause: () => void; play: (
 const activeRiveInstances: Set<RiveRenderedInstance> = new Set();
 const riveBufferCache: Map<string, ArrayBuffer> = new Map();
 
+// Runtime version consistency check (best-effort; ignored if packages unavailable)
+function checkRiveVersionsOnce() {
+	// only run once
+	if ((checkRiveVersionsOnce as any)._ran) return;
+	(checkRiveVersionsOnce as any)._ran = true;
+	try {
+		// eslint-disable-next-line @typescript-eslint/no-var-requires
+		const vc = require('@rive-app/canvas/package.json')?.version;
+		// eslint-disable-next-line @typescript-eslint/no-var-requires
+		const v1 = require('@rive-app/webgl/package.json')?.version;
+		// eslint-disable-next-line @typescript-eslint/no-var-requires
+		const v2 = require('@rive-app/webgl2/package.json')?.version;
+		const versions = [vc, v1, v2].filter(Boolean) as string[];
+		if (!versions.length) return;
+		const mismatch = versions.some(v => v !== versions[0]);
+		if (mismatch) {
+			console.warn('[Rive] Version mismatch detected among packages:', { canvas: vc, webgl: v1, webgl2: v2 });
+			new Notice('Rive package version mismatch – see console');
+		} else {
+			console.debug('[Rive] Packages unified version', versions[0]);
+		}
+	} catch (e) {
+		// silent – optional feature
+	}
+}
+
 export default class MyPlugin extends Plugin {
 	settings: MyPluginSettings; private lastInstance: RiveRenderedInstance | null = null;
 	async onload() {
 		await this.loadSettings();
+		checkRiveVersionsOnce();
 		const ribbon = this.addRibbonIcon('dice', 'Rive Plugin', () => new Notice('Rive plugin active')); ribbon.addClass('rive-plugin-ribbon');
 		const status = this.addStatusBarItem(); status.setText('Rive WIP');
 		this.addCommand({ id: 'rive-test-load', name: 'Rive: Test runtime load', callback: async () => { try { const rive = await getRive(); new Notice('Rive runtime loaded'); console.log('Rive module', rive); } catch (e) { console.error(e); new Notice('Failed to load Rive runtime'); } } });
@@ -99,6 +126,8 @@ export default class MyPlugin extends Plugin {
 						loopConst = riveMod.Loop.forever || riveMod.Loop.loop || Object.values(riveMod.Loop)[0];
 					}
 					let instance: any; let isPaused = !cfg.autoplay; let loaded = false;
+					// Log config & buffer length for diagnostics
+					console.debug('[Rive] Render begin', { path: resolvedPath, cfg, rendererChoice, cached: riveBufferCache.has(resolvedPath), bufferBytes: arrayBuffer.byteLength });
 					// Resize handling with aspect ratio
 					const applySize = () => {
 						const parentWidth = container.clientWidth;
@@ -233,7 +262,16 @@ export default class MyPlugin extends Plugin {
 						loop: loopConst,
 						layout,
 						assetLoader,
-						onLoad: () => { console.log('Rive loaded', cfg.src, cfg.artboard || '', cfg.renderer || ''); instance?.resizeDrawingSurfaceToCanvas?.(); finalize(); }
+						onLoad: () => { console.log('Rive loaded', cfg.src, cfg.artboard || '', cfg.renderer || ''); instance?.resizeDrawingSurfaceToCanvas?.(); finalize(); },
+						onLoadError: (err: any) => {
+							console.error('[Rive] onLoadError', err);
+							if (playBtn) { playBtn.textContent = 'Error'; playBtn.disabled = true; }
+							const ov = container.createDiv({ cls: 'rive-overlay-error', text: 'Load error' });
+							ov.onclick = () => {
+								new Notice('Rive load error – see console');
+								ov.detach();
+							};
+						}
 					};
 					if (cfg.artboard) ctorParams.artboard = cfg.artboard;
 					if (cfg.stateMachines && cfg.stateMachines.length) ctorParams.stateMachines = cfg.stateMachines.length === 1 ? cfg.stateMachines[0] : cfg.stateMachines;
@@ -270,7 +308,7 @@ export default class MyPlugin extends Plugin {
 					if (playBtn) playBtn.onclick = () => { if (!loaded) return; isPaused ? api.play() : api.pause(); };
 					if (restartBtn) restartBtn.onclick = () => api.restart();
 					// Safety timeout: if onLoad never fires, show error.
-					window.setTimeout(() => { if (!loaded) { if (playBtn) playBtn.textContent = 'Error'; const ov = container.createDiv({ cls: 'rive-overlay-error', text: 'Load timeout' }); ov.onclick = () => ov.remove(); } }, 8000);
+					window.setTimeout(() => { if (!loaded) { if (playBtn) playBtn.textContent = 'Error'; const ov = container.createDiv({ cls: 'rive-overlay-error', text: 'Load timeout' }); ov.onclick = () => ov.remove(); console.warn('[Rive] Load timeout', { path: resolvedPath }); } }, 8000);
 				} catch (e) {
 					console.error('Failed to render Rive', e);
 					container.createDiv({ cls: 'rive-error', text: 'Failed to load Rive file'});
